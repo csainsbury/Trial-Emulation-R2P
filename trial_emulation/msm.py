@@ -159,8 +159,17 @@ def trial_msm(
             "Data frame for outcome model contains missing data. "
             "Doing complete-case analysis."
         )
-        data = data.dropna()
-        w = w[data.index]
+        # Get boolean mask of rows without missing values before dropping
+        # This ensures w (numpy array) and data are aligned
+        complete_case_mask = ~data.isnull().any(axis=1)
+        data = data[complete_case_mask].copy()
+        w = w[complete_case_mask]
+    
+    # Assert alignment between data and weights
+    assert len(data) == len(w), (
+        f"Data and weights must have same length. "
+        f"Got data: {len(data)}, weights: {len(w)}"
+    )
     
     quiet_line(quiet)
     quiet_msg(quiet, "Fitting outcome model")
