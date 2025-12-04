@@ -51,6 +51,18 @@ def data_extension(
             - N: Total number of observations
             - data_template: Zero-row DataFrame with columns
     """
+    # Input validation
+    if data.empty:
+        raise ValueError("Input data is empty")
+    
+    required_cols = ["id", "period", "treatment", "outcome", "eligible"]
+    missing_cols = [col for col in required_cols if col not in data.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+    
+    if not keeplist:
+        raise ValueError("keeplist cannot be empty")
+    
     if separate_files:
         if not data_dir:
             raise ValueError("data_dir must be specified when separate_files=True")

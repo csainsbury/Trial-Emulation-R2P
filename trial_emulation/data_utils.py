@@ -2,12 +2,12 @@
 Data utilities for column selection and data preparation checks.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 from .formula_utils import parse_formula_like
 
 
-def select_data_cols(data: pd.DataFrame, args: Dict[str, any]) -> pd.DataFrame:
+def select_data_cols(data: pd.DataFrame, args: Dict[str, Any]) -> pd.DataFrame:
     """
     Select the required columns from the data and rename.
     
@@ -124,7 +124,7 @@ def check_args_data_preparation(
     separate_files: bool = False,
     quiet: bool = False,
     **kwargs
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     Check arguments to data_preparation and convert types.
     
@@ -224,7 +224,7 @@ def check_args_data_preparation(
     return args
 
 
-def check_estimand_data_prep(args: Dict[str, any]) -> Dict[str, any]:
+def check_estimand_data_prep(args: Dict[str, Any]) -> Dict[str, Any]:
     """
     Check and set defaults based on estimand_type.
     

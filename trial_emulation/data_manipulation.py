@@ -14,7 +14,7 @@ try:
     HAS_CPP = True
 except ImportError:
     HAS_CPP = False
-    # Fallback Python implementation
+    # Placeholder function - actual fallback is _censor_func_python() below
     def _censor_func_cpp(first, eligible, treatment, switch_flag):
         raise NotImplementedError("C++ module not available, using Python fallback")
 
@@ -32,6 +32,15 @@ def data_manipulation(data: pd.DataFrame, use_censor: bool = True) -> pd.DataFra
     Returns:
         Preprocessed DataFrame
     """
+    # Input validation
+    if data.empty:
+        raise ValueError("Input data is empty")
+    
+    required_cols = ["id", "period", "treatment", "outcome", "eligible"]
+    missing_cols = [col for col in required_cols if col not in data.columns]
+    if missing_cols:
+        raise ValueError(f"Missing required columns: {missing_cols}")
+    
     data = data.copy()
     
     # Remove observations before eligibility
@@ -165,7 +174,15 @@ def _censor_func_python(sw_data: pd.DataFrame) -> pd.DataFrame:
     """
     Python fallback implementation of censoring function.
     
-    Implements the same logic as the C++ version.
+    Implements the same logic as the C++ version (see cpp/censor_func.cpp).
+    This function is used when the C++ extension is not available or fails.
+    It performs artificial censoring based on treatment switches for per-protocol analysis.
+    
+    The implementation mirrors the C++ state machine logic exactly:
+    - Tracks started0/started1 flags for treatment regimes
+    - Tracks stop0/stop1 flags when switching while ineligible
+    - Sets eligible0_sw/eligible1_sw based on current regime
+    - Marks rows for deletion when neither eligible flag is set
     """
     sw_data = sw_data.copy()
     n = len(sw_data)

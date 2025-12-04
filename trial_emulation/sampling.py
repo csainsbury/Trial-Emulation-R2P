@@ -36,8 +36,20 @@ def case_control_sampling_trials(
         DataFrame or list of DataFrames (if multiple p_control values)
         with additional column 'sample_weight' containing sampling weights
     """
+    # Input validation
+    if data_prep.N == 0:
+        raise ValueError("data_prep contains no observations (N=0)")
+    
     if isinstance(p_control, (int, float)):
+        if not (0 < p_control <= 1):
+            raise ValueError(f"p_control must be between 0 and 1, got {p_control}")
         p_control = [p_control]
+    else:
+        if not p_control:
+            raise ValueError("p_control cannot be empty")
+        for p in p_control:
+            if not (0 < p <= 1):
+                raise ValueError(f"All p_control values must be between 0 and 1, got {p}")
     
     if isinstance(data_prep.data, list):
         # Separate files
@@ -160,6 +172,13 @@ def _do_sampling(data: pd.DataFrame, p_control: float = 0.01) -> pd.DataFrame:
     
     For the given data, find cases and sample a number of controls.
     """
+    # Input validation
+    if data.empty:
+        return pd.DataFrame()
+    
+    if "outcome" not in data.columns:
+        raise ValueError("Data must contain 'outcome' column")
+    
     # Cases occurred at each period and follow-up visit
     cases_mask = data["outcome"] == 1
     cases = data[cases_mask].copy()
