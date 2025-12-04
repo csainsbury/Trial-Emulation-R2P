@@ -136,7 +136,7 @@ def _sample_from_period(
     followup_groups = period_data.groupby("followup_time")
     
     all_samples = []
-    for p in p_control:
+    for idx, p in enumerate(p_control):
         sample_list = []
         for followup_time, group in followup_groups:
             sampled = _do_sampling(group, p_control=p)
@@ -145,7 +145,7 @@ def _sample_from_period(
         if sample_list:
             combined = pd.concat(sample_list, ignore_index=True)
             if len(p_control) > 1:
-                combined["sample_id"] = p_control.index(p)
+                combined["sample_id"] = idx
             all_samples.append(combined)
     
     if len(p_control) > 1:

@@ -99,7 +99,7 @@ def data_manipulation(data: pd.DataFrame, use_censor: bool = True) -> pd.DataFra
     sw_data["regime_start"] = np.nan
     sw_data.loc[sw_data["first"], "regime_start"] = sw_data.loc[sw_data["first"], "period"]
     sw_data.loc[sw_data["switch"] == 1, "regime_start"] = sw_data.loc[sw_data["switch"] == 1, "period"]
-    sw_data["regime_start"] = sw_data.groupby("id")["regime_start"].fillna(method="ffill")
+    sw_data["regime_start"] = sw_data.groupby("id")["regime_start"].ffill()
     
     # Compute time_on_regime
     sw_data["regime_start_shift"] = sw_data.groupby("id")["regime_start"].shift(1)

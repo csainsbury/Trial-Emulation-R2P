@@ -5,7 +5,7 @@ Expands the longitudinal data into a sequence of trials.
 Maps R's data_extension.R functions.
 """
 
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Union, Any
 import pandas as pd
 import numpy as np
 import os
@@ -24,7 +24,7 @@ def data_extension(
     data_dir: Optional[str] = None,
     separate_files: bool = False,
     chunk_size: int = 200
-) -> Dict[str, any]:
+) -> Dict[str, Any]:
     """
     Data extension function.
     
