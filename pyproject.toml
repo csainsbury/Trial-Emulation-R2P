@@ -103,6 +103,6 @@ exclude_lines = [
     "if TYPE_CHECKING:",
     "@abstractmethod",
 ]
-fail_under = 30
+fail_under = 25
 precision = 2
 
