@@ -43,6 +43,38 @@ def trial_example_data():
 
 
 @pytest.fixture
+def expanded_trial_data_real(trial_example_data):
+    """
+    Provide expanded trial data from the real R package dataset.
+
+    This fixture runs data_preparation() on the trial_example dataset
+    to provide expanded trial data that's suitable for MSM fitting tests.
+
+    This is the RECOMMENDED fixture for MSM tests, as it uses validated
+    data that doesn't cause numerical issues (singular matrix errors).
+
+    Returns:
+        TEDataPrep: Expanded trial data ready for MSM fitting
+    """
+    from trial_emulation.data_preparation import data_preparation
+
+    prep = data_preparation(
+        data=trial_example_data,
+        id="id",
+        period="period",
+        treatment="treatment",
+        outcome="outcome",
+        eligible="eligible",
+        estimand_type="ITT",
+        outcome_cov=["nvarA", "nvarB"],
+        use_censor_weights=False,
+        quiet=True,
+    )
+
+    return prep
+
+
+@pytest.fixture
 def synthetic_data_simple():
     """
     Generate a simple synthetic dataset for basic tests.

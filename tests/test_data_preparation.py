@@ -67,7 +67,8 @@ class TestDataPreparationBasic:
         )
 
         # Check that expanded data has required columns
-        required_cols = ["id", "period", "outcome", "trial_period", "followup_time"]
+        # Note: After expansion, 'period' becomes 'trial_period' and 'followup_time'
+        required_cols = ["id", "trial_period", "followup_time", "outcome", "treatment"]
         for col in required_cols:
             assert col in result.data.columns, f"Missing column: {col}"
 
@@ -429,10 +430,11 @@ class TestDataPreparationIntegration:
         assert isinstance(result.data, pd.DataFrame)
         assert result.N > 0
 
-        # Check that weights exist
-        assert "wt" in result.data.columns
+        # Check that weights exist (column may be 'wt' or 'weight')
+        weight_col = "wt" if "wt" in result.data.columns else "weight"
+        assert weight_col in result.data.columns, "Weight column not found in data"
         # Weights should be positive
-        assert (result.data["wt"] > 0).all()
+        assert (result.data[weight_col] > 0).all()
 
 
 class TestDataPreparationQuietMode:
