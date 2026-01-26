@@ -93,37 +93,38 @@ def assert_monotonic(x: list, increasing: bool = True) -> None:
             raise ValueError("Not monotonically decreasing")
 
 
-def p99_weight(weight: list) -> list:
+def p99_weight(weight):
     """
     Truncate weights at the 1st and 99th percentile.
 
     Args:
-        weight: List of weights
+        weight: Weights as array-like (numpy array, list, or pandas Series)
 
     Returns:
-        Truncated weights
+        Truncated weights as numpy array
     """
     import numpy as np
 
-    p99 = np.percentile(weight, [1, 99])
-    return limit_weight(weight, p99[0], p99[1])
+    weight_array = np.asarray(weight)
+    p99 = np.percentile(weight_array, [1, 99])
+    return limit_weight(weight_array, p99[0], p99[1])
 
 
-def limit_weight(weight: list, lower_limit: float, upper_limit: float) -> list:
+def limit_weight(weight, lower_limit: float, upper_limit: float):
     """
     Truncate weights using user-defined limits.
 
     Args:
-        weight: List of weights
+        weight: Weights as array-like (numpy array, list, or pandas Series)
         lower_limit: Minimum possible weight
         upper_limit: Maximum possible weight
 
     Returns:
-        Truncated weights
+        Truncated weights as numpy array
     """
     import numpy as np
 
-    weight = np.array(weight)
-    weight[weight > upper_limit] = upper_limit
-    weight[weight < lower_limit] = lower_limit
-    return weight.tolist()
+    weight_array = np.asarray(weight).copy()
+    weight_array[weight_array > upper_limit] = upper_limit
+    weight_array[weight_array < lower_limit] = lower_limit
+    return weight_array

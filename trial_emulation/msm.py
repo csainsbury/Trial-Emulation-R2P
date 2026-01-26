@@ -165,7 +165,8 @@ def trial_msm(
         # This ensures w (numpy array) and data are aligned
         complete_case_mask = ~data.isnull().any(axis=1)
         data = data[complete_case_mask].copy()
-        w = w[complete_case_mask]
+        # Convert mask to numpy array for indexing w (which is now always a numpy array)
+        w = w[complete_case_mask.values]
 
     # Assert alignment between data and weights
     assert len(data) == len(w), (

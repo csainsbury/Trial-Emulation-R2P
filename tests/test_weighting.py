@@ -34,6 +34,10 @@ def switch_data_simple():
         }
     )
 
+    # Add eligible0 and eligible1 columns based on previous treatment
+    data["eligible0"] = (data["am_1"] == 0).astype(int)
+    data["eligible1"] = (data["am_1"] == 1).astype(int)
+
     return data
 
 
@@ -59,6 +63,10 @@ def censor_data_simple():
         }
     )
 
+    # Add eligible0 and eligible1 columns based on previous treatment
+    data["eligible0"] = (data["am_1"] == 0).astype(int)
+    data["eligible1"] = (data["am_1"] == 1).astype(int)
+
     return data
 
 
@@ -82,6 +90,10 @@ def combined_data():
             "baseline_var": np.random.normal(0, 1, n_obs),
         }
     )
+
+    # Add eligible0 and eligible1 columns based on previous treatment
+    data["eligible0"] = (data["am_1"] == 0).astype(int)
+    data["eligible1"] = (data["am_1"] == 1).astype(int)
 
     return data
 
