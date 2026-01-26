@@ -1,10 +1,14 @@
 # TrialEmulation (Python)
 
-[![PyPI version](https://badge.fury.io/py/trial-emulation.svg)](https://badge.fury.io/py/trial-emulation)
-[![Python versions](https://img.shields.io/pypi/pyversions/trial-emulation.svg)](https://pypi.org/project/trial-emulation/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+[![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![Build Status](https://github.com/csainsbury/Trial-Emulation-R2P/workflows/Tests/badge.svg)](https://github.com/csainsbury/Trial-Emulation-R2P/actions)
+[![Code Coverage](https://img.shields.io/badge/coverage-27%25-orange.svg)](https://github.com/csainsbury/Trial-Emulation-R2P)
+
+<!-- Badges to add when infrastructure is ready:
+[![PyPI version](https://badge.fury.io/py/trial-emulation.svg)](https://badge.fury.io/py/trial-emulation)
 [![Documentation Status](https://readthedocs.org/projects/trial-emulation/badge/?version=latest)](https://trial-emulation.readthedocs.io/en/latest/?badge=latest)
+-->
 
 Python port of the R [TrialEmulation](https://github.com/Causal-LDA/TrialEmulation) package for causal inference in observational time-to-event data.
 
@@ -33,17 +37,9 @@ This Python implementation provides the same functionality as the R TrialEmulati
 
 ## Installation
 
-### From PyPI (Recommended)
+> **Note**: This package is not yet published to PyPI. Currently install from source.
 
-Once published, install the latest stable version:
-
-```bash
-pip install trial-emulation
-```
-
-### From Source
-
-For development or the latest features:
+### From Source (Current Method)
 
 ```bash
 git clone https://github.com/csainsbury/Trial-Emulation-R2P.git
@@ -216,11 +212,12 @@ This approach ensures that our Python implementation produces results consistent
 ### Test Coverage
 
 Current test status (as of v0.0.4.0):
-- **36 tests passing** covering core functionality
-- **65%+ code coverage** across main modules
+- **39 tests passing** + 1 skipped (Python 3.14 compatibility) - all core functionality covered
+- **27% code coverage** across main modules (focused on core workflow validation)
 - ✓ **Integration tests pass** with real R package data
 - ✓ **Core workflow validated**: `data_preparation()` → `trial_msm()` → results
 - ✓ **Proven to work** on real epidemiological data (1.9M+ observations after expansion)
+- ✓ **Multi-platform testing** via GitHub Actions (Linux, macOS, Windows)
 
 Key tested functionality:
 - Data preparation and trial expansion
@@ -282,6 +279,9 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 ## Links
 
 - **GitHub**: https://github.com/csainsbury/Trial-Emulation-R2P
+- **Original R Package**: https://github.com/Causal-LDA/TrialEmulation
+
+<!-- Links to add when published:
 - **PyPI**: https://pypi.org/project/trial-emulation/
 - **Documentation**: https://trial-emulation.readthedocs.io
-- **Original R Package**: https://github.com/Causal-LDA/TrialEmulation
+-->
