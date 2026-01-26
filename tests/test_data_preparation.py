@@ -379,17 +379,17 @@ class TestDataPreparationIntegration:
     """Integration tests for full workflow."""
 
     @pytest.mark.integration
-    def test_full_workflow_itt(self, synthetic_data_with_known_effect):
-        """Test complete ITT workflow with known effect data."""
+    def test_full_workflow_itt(self, trial_example_data):
+        """Test complete ITT workflow with real R package data."""
         result = data_preparation(
-            data=synthetic_data_with_known_effect,
+            data=trial_example_data,
             id="id",
             period="period",
             treatment="treatment",
             outcome="outcome",
             eligible="eligible",
             estimand_type="ITT",
-            outcome_cov="age",
+            outcome_cov=["nvarA", "nvarB"],
             quiet=True,
         )
 
@@ -403,7 +403,8 @@ class TestDataPreparationIntegration:
 
         # Check data integrity
         assert not result.data["id"].isna().any()
-        assert not result.data["period"].isna().any()
+        assert not result.data["trial_period"].isna().any()
+        assert not result.data["followup_time"].isna().any()
         assert result.data["outcome"].isin([0, 1]).all()
 
     @pytest.mark.integration

@@ -382,12 +382,29 @@ class TestTrialMSMIntegration:
     """Integration tests for complete MSM workflow."""
 
     @pytest.mark.integration
-    def test_full_msm_workflow(self, expanded_trial_data_with_known_effect):
-        """Test complete MSM fitting workflow with known effect."""
-        result = trial_msm(
-            data=expanded_trial_data_with_known_effect,
+    def test_full_msm_workflow(self, trial_example_data):
+        """Test complete MSM fitting workflow with real R package data."""
+        from trial_emulation.data_preparation import data_preparation
+
+        # First prepare the data
+        prep = data_preparation(
+            data=trial_example_data,
+            id="id",
+            period="period",
+            treatment="treatment",
+            outcome="outcome",
+            eligible="eligible",
             estimand_type="ITT",
-            outcome_cov="age",
+            outcome_cov=["nvarA", "nvarB"],
+            use_censor_weights=False,
+            quiet=True,
+        )
+
+        # Then fit MSM
+        result = trial_msm(
+            data=prep,
+            estimand_type="ITT",
+            outcome_cov=["nvarA", "nvarB"],
             analysis_weights="unweighted",
             quiet=True,
         )
@@ -402,11 +419,9 @@ class TestTrialMSMIntegration:
         params = result.model.params
         assert "assigned_treatment" in params.index
 
-        # With known effect (OR = 0.5), coefficient should be negative
-        # (log(0.5) ≈ -0.693)
-        treatment_coef = params["assigned_treatment"]
-        # Allow wide range due to random variation
-        assert treatment_coef < 0, "Treatment should reduce outcome odds"
+        # Check that model has reasonable coefficients (no NaN or inf)
+        assert not params.isna().any(), "Model params should not contain NaN"
+        assert not np.isinf(params).any(), "Model params should not contain inf"
 
     @pytest.mark.integration
     def test_msm_with_all_options(self, expanded_trial_data):

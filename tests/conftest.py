@@ -2,12 +2,44 @@
 Pytest configuration and shared fixtures for trial_emulation tests.
 
 This module provides reusable test fixtures including synthetic datasets
-of varying complexity for testing the trial emulation functionality.
+of varying complexity for testing the trial emulation functionality, as well
+as real data from the R TrialEmulation package for validation tests.
 """
 
+import os
 import numpy as np
 import pandas as pd
 import pytest
+
+
+@pytest.fixture
+def trial_example_data():
+    """
+    Load the real trial_example dataset from the R TrialEmulation package.
+
+    This is the canonical example dataset used in the R package documentation
+    and provides validated test data that's known to work with the statistical
+    models.
+
+    Dataset characteristics:
+    - 48,400 observations
+    - 503 unique patients
+    - 11 columns: id, eligible, period, outcome, treatment,
+      catvarA, catvarB, catvarC, nvarA, nvarB, nvarC
+    - Real longitudinal structure with varying follow-up
+    - Validated for use with IPW and MSM models
+
+    Returns:
+        pd.DataFrame: The trial_example dataset
+    """
+    # Get path to data directory
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    data_path = os.path.join(test_dir, "data", "trial_example.csv")
+
+    # Load the data
+    df = pd.read_csv(data_path)
+
+    return df
 
 
 @pytest.fixture
