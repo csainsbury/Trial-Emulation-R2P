@@ -37,15 +37,17 @@ def synthetic_data_simple():
             outcome = 1 if treatment == 1 and period >= 3 and np.random.random() > 0.7 else 0
             censored = 1 if outcome == 1 else 0
 
-            data.append({
-                'id': patient_id,
-                'period': period,
-                'treatment': treatment,
-                'outcome': outcome,
-                'censored': censored,
-                'age': 50 + patient_id * 2,
-                'baseline_var': patient_id / 10.0
-            })
+            data.append(
+                {
+                    "id": patient_id,
+                    "period": period,
+                    "treatment": treatment,
+                    "outcome": outcome,
+                    "censored": censored,
+                    "age": 50 + patient_id * 2,
+                    "baseline_var": patient_id / 10.0,
+                }
+            )
 
     return pd.DataFrame(data)
 
@@ -96,7 +98,7 @@ def synthetic_data_complex():
             outcome_prob = 0.05 + 0.01 * period
             if treatment:
                 outcome_prob *= 0.6  # Treatment reduces outcome risk
-            outcome_prob *= (1 + baseline_risk)
+            outcome_prob *= 1 + baseline_risk
 
             outcome = 1 if np.random.random() < outcome_prob else 0
             if outcome:
@@ -105,17 +107,19 @@ def synthetic_data_complex():
             # Time-varying covariate
             time_var_covariate = np.random.normal(100, 15)
 
-            data.append({
-                'id': patient_id,
-                'period': period,
-                'treatment': treatment,
-                'outcome': outcome,
-                'censored': outcome,
-                'age': age,
-                'baseline_risk': baseline_risk,
-                'time_var_covariate': time_var_covariate,
-                'eligible': 1  # All eligible for simplicity
-            })
+            data.append(
+                {
+                    "id": patient_id,
+                    "period": period,
+                    "treatment": treatment,
+                    "outcome": outcome,
+                    "censored": outcome,
+                    "age": age,
+                    "baseline_risk": baseline_risk,
+                    "time_var_covariate": time_var_covariate,
+                    "eligible": 1,  # All eligible for simplicity
+                }
+            )
 
     return pd.DataFrame(data)
 
@@ -165,15 +169,17 @@ def synthetic_data_with_known_effect():
             if outcome:
                 has_outcome = True
 
-            data.append({
-                'id': patient_id,
-                'period': period,
-                'treatment': treatment,
-                'outcome': outcome,
-                'censored': outcome,
-                'age': np.random.randint(45, 75),
-                'eligible': 1
-            })
+            data.append(
+                {
+                    "id": patient_id,
+                    "period": period,
+                    "treatment": treatment,
+                    "outcome": outcome,
+                    "censored": outcome,
+                    "age": np.random.randint(45, 75),
+                    "eligible": 1,
+                }
+            )
 
     return pd.DataFrame(data)
 
@@ -186,15 +192,17 @@ def synthetic_data_single_period():
     Returns:
         pd.DataFrame: Single period dataset
     """
-    return pd.DataFrame({
-        'id': [1, 2, 3, 4, 5],
-        'period': [0, 0, 0, 0, 0],
-        'treatment': [0, 1, 0, 1, 1],
-        'outcome': [0, 0, 1, 0, 0],
-        'censored': [0, 0, 1, 0, 0],
-        'age': [50, 55, 60, 65, 70],
-        'eligible': [1, 1, 1, 1, 1]
-    })
+    return pd.DataFrame(
+        {
+            "id": [1, 2, 3, 4, 5],
+            "period": [0, 0, 0, 0, 0],
+            "treatment": [0, 1, 0, 1, 1],
+            "outcome": [0, 0, 1, 0, 0],
+            "censored": [0, 0, 1, 0, 0],
+            "age": [50, 55, 60, 65, 70],
+            "eligible": [1, 1, 1, 1, 1],
+        }
+    )
 
 
 @pytest.fixture
@@ -213,15 +221,17 @@ def synthetic_data_with_ineligible():
             # Some patients become ineligible after period 2
             eligible = 1 if period < 3 or patient_id % 3 == 0 else 0
 
-            data.append({
-                'id': patient_id,
-                'period': period,
-                'treatment': np.random.randint(0, 2),
-                'outcome': 0,
-                'censored': 0,
-                'age': 50 + patient_id,
-                'eligible': eligible
-            })
+            data.append(
+                {
+                    "id": patient_id,
+                    "period": period,
+                    "treatment": np.random.randint(0, 2),
+                    "outcome": 0,
+                    "censored": 0,
+                    "age": 50 + patient_id,
+                    "eligible": eligible,
+                }
+            )
 
     return pd.DataFrame(data)
 
@@ -238,10 +248,10 @@ def mock_weights():
     n = 100
 
     return {
-        'uniform': np.ones(n),
-        'random': np.random.uniform(0.5, 2.0, n),
-        'extreme': np.random.uniform(0.01, 10.0, n),
-        'with_zeros': np.concatenate([np.zeros(10), np.random.uniform(0.5, 2.0, 90)])
+        "uniform": np.ones(n),
+        "random": np.random.uniform(0.5, 2.0, n),
+        "extreme": np.random.uniform(0.01, 10.0, n),
+        "with_zeros": np.concatenate([np.zeros(10), np.random.uniform(0.5, 2.0, 90)]),
     }
 
 
@@ -255,13 +265,15 @@ def sample_formula_data():
     """
     np.random.seed(42)
 
-    return pd.DataFrame({
-        'outcome': np.random.randint(0, 2, 50),
-        'treatment': np.random.randint(0, 2, 50),
-        'continuous_var': np.random.normal(0, 1, 50),
-        'categorical_var': np.random.choice(['A', 'B', 'C'], 50),
-        'time': np.repeat(range(5), 10)
-    })
+    return pd.DataFrame(
+        {
+            "outcome": np.random.randint(0, 2, 50),
+            "treatment": np.random.randint(0, 2, 50),
+            "continuous_var": np.random.normal(0, 1, 50),
+            "categorical_var": np.random.choice(["A", "B", "C"], 50),
+            "time": np.repeat(range(5), 10),
+        }
+    )
 
 
 # Configuration for pytest
@@ -270,9 +282,5 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: marks tests as slow (deselect with '-m \"not slow\"')"
     )
-    config.addinivalue_line(
-        "markers", "integration: marks tests as integration tests"
-    )
-    config.addinivalue_line(
-        "markers", "cpp: marks tests that require C++ extension"
-    )
+    config.addinivalue_line("markers", "integration: marks tests as integration tests")
+    config.addinivalue_line("markers", "cpp: marks tests that require C++ extension")

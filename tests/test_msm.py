@@ -23,17 +23,19 @@ def expanded_trial_data():
     np.random.seed(42)
 
     n_obs = 500
-    data = pd.DataFrame({
-        'id': np.repeat(range(1, 101), 5),
-        'trial_period': np.tile(range(5), 100),
-        'followup_time': np.tile(range(5), 100),
-        'assigned_treatment': np.random.randint(0, 2, n_obs),
-        'outcome': np.random.randint(0, 2, n_obs),
-        'weight': np.random.uniform(0.5, 2.0, n_obs),
-        'dose': np.random.randint(0, 4, n_obs),
-        'age': np.random.randint(40, 80, n_obs),
-        'baseline_var': np.random.normal(0, 1, n_obs)
-    })
+    data = pd.DataFrame(
+        {
+            "id": np.repeat(range(1, 101), 5),
+            "trial_period": np.tile(range(5), 100),
+            "followup_time": np.tile(range(5), 100),
+            "assigned_treatment": np.random.randint(0, 2, n_obs),
+            "outcome": np.random.randint(0, 2, n_obs),
+            "weight": np.random.uniform(0.5, 2.0, n_obs),
+            "dose": np.random.randint(0, 4, n_obs),
+            "age": np.random.randint(40, 80, n_obs),
+            "baseline_var": np.random.normal(0, 1, n_obs),
+        }
+    )
 
     return data
 
@@ -65,15 +67,17 @@ def expanded_trial_data_with_known_effect():
             prob = 1 / (1 + np.exp(-log_odds))
             outcome = 1 if np.random.random() < prob else 0
 
-            data.append({
-                'id': patient_id,
-                'trial_period': period,
-                'followup_time': period,
-                'assigned_treatment': assigned_treatment,
-                'outcome': outcome,
-                'weight': 1.0,  # Equal weights for simplicity
-                'age': np.random.randint(45, 75)
-            })
+            data.append(
+                {
+                    "id": patient_id,
+                    "trial_period": period,
+                    "followup_time": period,
+                    "assigned_treatment": assigned_treatment,
+                    "outcome": outcome,
+                    "weight": 1.0,  # Equal weights for simplicity
+                    "age": np.random.randint(45, 75),
+                }
+            )
 
     return pd.DataFrame(data)
 
@@ -83,41 +87,29 @@ class TestTrialMSMBasic:
 
     def test_trial_msm_returns_correct_type(self, expanded_trial_data):
         """Test that trial_msm returns TEMSM object."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
         assert isinstance(result, TEMSM)
-        assert hasattr(result, 'model')
-        assert hasattr(result, 'robust')
-        assert hasattr(result, 'args')
+        assert hasattr(result, "model")
+        assert hasattr(result, "robust")
+        assert hasattr(result, "args")
 
     def test_trial_msm_model_structure(self, expanded_trial_data):
         """Test that fitted model has expected structure."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
         # Check model object
         assert result.model is not None
-        assert hasattr(result.model, 'params')
-        assert hasattr(result.model, 'predict')
+        assert hasattr(result.model, "params")
+        assert hasattr(result.model, "predict")
 
         # Check robust results
         assert isinstance(result.robust, dict)
-        assert 'vcov_robust' in result.robust or 'robust_vcov' in result.robust
+        assert "vcov_robust" in result.robust or "robust_vcov" in result.robust
 
     def test_trial_msm_with_dataframe(self, expanded_trial_data):
         """Test trial_msm with DataFrame input."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
         assert isinstance(result, TEMSM)
 
@@ -129,14 +121,10 @@ class TestTrialMSMBasic:
             min_period=0,
             max_period=4,
             N=len(expanded_trial_data),
-            data_template=expanded_trial_data.iloc[:0]
+            data_template=expanded_trial_data.iloc[:0],
         )
 
-        result = trial_msm(
-            data=te_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=te_data, estimand_type="ITT", quiet=True)
 
         assert isinstance(result, TEMSM)
 
@@ -146,46 +134,30 @@ class TestTrialMSMEstimands:
 
     def test_itt_estimand(self, expanded_trial_data):
         """Test ITT estimand."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
-        assert result.args['estimand_type'] == "ITT"
+        assert result.args["estimand_type"] == "ITT"
         # ITT should use assigned_treatment in formula
-        assert 'assigned_treatment' in result.args['model_formula']
+        assert "assigned_treatment" in result.args["model_formula"]
 
     def test_pp_estimand(self, expanded_trial_data):
         """Test per-protocol estimand."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="PP",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="PP", quiet=True)
 
-        assert result.args['estimand_type'] == "PP"
+        assert result.args["estimand_type"] == "PP"
 
     def test_as_treated_estimand(self, expanded_trial_data):
         """Test as-treated estimand."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="As-Treated",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="As-Treated", quiet=True)
 
-        assert result.args['estimand_type'] == "As-Treated"
+        assert result.args["estimand_type"] == "As-Treated"
         # As-Treated should use dose in formula
-        assert 'dose' in result.args['model_formula']
+        assert "dose" in result.args["model_formula"]
 
     def test_invalid_estimand_raises_error(self, expanded_trial_data):
         """Test that invalid estimand type raises ValueError."""
         with pytest.raises(ValueError, match="estimand_type must be one of"):
-            trial_msm(
-                data=expanded_trial_data,
-                estimand_type="INVALID",
-                quiet=True
-            )
+            trial_msm(data=expanded_trial_data, estimand_type="INVALID", quiet=True)
 
 
 class TestTrialMSMWeights:
@@ -194,35 +166,26 @@ class TestTrialMSMWeights:
     def test_asis_weights(self, expanded_trial_data):
         """Test analysis_weights='asis' (use weights as-is)."""
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            analysis_weights="asis",
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", analysis_weights="asis", quiet=True
         )
 
-        assert result.args['analysis_weights'] == "asis"
+        assert result.args["analysis_weights"] == "asis"
 
     def test_unweighted(self, expanded_trial_data):
         """Test analysis_weights='unweighted'."""
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            analysis_weights="unweighted",
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", analysis_weights="unweighted", quiet=True
         )
 
-        assert result.args['analysis_weights'] == "unweighted"
+        assert result.args["analysis_weights"] == "unweighted"
 
     def test_p99_weights(self, expanded_trial_data):
         """Test analysis_weights='p99' (truncate at 99th percentile)."""
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            analysis_weights="p99",
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", analysis_weights="p99", quiet=True
         )
 
-        assert result.args['analysis_weights'] == "p99"
+        assert result.args["analysis_weights"] == "p99"
 
     def test_weight_limits(self, expanded_trial_data):
         """Test analysis_weights='weight_limits' with custom limits."""
@@ -231,11 +194,11 @@ class TestTrialMSMWeights:
             estimand_type="ITT",
             analysis_weights="weight_limits",
             weight_limits=(0.1, 10.0),
-            quiet=True
+            quiet=True,
         )
 
-        assert result.args['analysis_weights'] == "weight_limits"
-        assert result.args['weight_limits'] == (0.1, 10.0)
+        assert result.args["analysis_weights"] == "weight_limits"
+        assert result.args["weight_limits"] == (0.1, 10.0)
 
     def test_invalid_analysis_weights_raises_error(self, expanded_trial_data):
         """Test that invalid analysis_weights raises ValueError."""
@@ -244,7 +207,7 @@ class TestTrialMSMWeights:
                 data=expanded_trial_data,
                 estimand_type="ITT",
                 analysis_weights="INVALID",
-                quiet=True
+                quiet=True,
             )
 
 
@@ -255,25 +218,19 @@ class TestTrialMSMFollowupFiltering:
         """Test filtering with first_followup parameter."""
         first_followup = 2
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            first_followup=first_followup,
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", first_followup=first_followup, quiet=True
         )
 
-        assert result.args['first_followup'] == first_followup
+        assert result.args["first_followup"] == first_followup
 
     def test_last_followup_filter(self, expanded_trial_data):
         """Test filtering with last_followup parameter."""
         last_followup = 3
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            last_followup=last_followup,
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", last_followup=last_followup, quiet=True
         )
 
-        assert result.args['last_followup'] == last_followup
+        assert result.args["last_followup"] == last_followup
 
     def test_followup_range_filter(self, expanded_trial_data):
         """Test filtering with both first and last followup."""
@@ -282,11 +239,11 @@ class TestTrialMSMFollowupFiltering:
             estimand_type="ITT",
             first_followup=1,
             last_followup=3,
-            quiet=True
+            quiet=True,
         )
 
-        assert result.args['first_followup'] == 1
-        assert result.args['last_followup'] == 3
+        assert result.args["first_followup"] == 1
+        assert result.args["last_followup"] == 3
 
 
 class TestTrialMSMCovariates:
@@ -298,12 +255,12 @@ class TestTrialMSMCovariates:
             data=expanded_trial_data,
             estimand_type="ITT",
             outcome_cov="age + baseline_var",
-            quiet=True
+            quiet=True,
         )
 
         # Check that covariates are in the formula
-        assert 'age' in result.args['model_formula']
-        assert 'baseline_var' in result.args['model_formula']
+        assert "age" in result.args["model_formula"]
+        assert "baseline_var" in result.args["model_formula"]
 
     def test_custom_model_var(self, expanded_trial_data):
         """Test specifying custom model variables."""
@@ -311,10 +268,10 @@ class TestTrialMSMCovariates:
             data=expanded_trial_data,
             estimand_type="ITT",
             model_var="assigned_treatment + age",
-            quiet=True
+            quiet=True,
         )
 
-        assert 'age' in result.args['model_formula']
+        assert "age" in result.args["model_formula"]
 
     def test_followup_time_terms(self, expanded_trial_data):
         """Test custom follow-up time terms."""
@@ -322,10 +279,10 @@ class TestTrialMSMCovariates:
             data=expanded_trial_data,
             estimand_type="ITT",
             include_followup_time="followup_time",
-            quiet=True
+            quiet=True,
         )
 
-        assert 'followup_time' in result.args['model_formula']
+        assert "followup_time" in result.args["model_formula"]
 
     def test_trial_period_terms(self, expanded_trial_data):
         """Test custom trial period terms."""
@@ -333,10 +290,10 @@ class TestTrialMSMCovariates:
             data=expanded_trial_data,
             estimand_type="ITT",
             include_trial_period="trial_period",
-            quiet=True
+            quiet=True,
         )
 
-        assert 'trial_period' in result.args['model_formula']
+        assert "trial_period" in result.args["model_formula"]
 
 
 class TestTrialMSMRobustVariance:
@@ -344,24 +301,16 @@ class TestTrialMSMRobustVariance:
 
     def test_robust_variance_structure(self, expanded_trial_data):
         """Test that robust variance results have correct structure."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
         # Check robust results dictionary
         assert isinstance(result.robust, dict)
         # Should contain robust variance-covariance matrix
-        assert any(key in result.robust for key in ['vcov_robust', 'robust_vcov', 'cov_params'])
+        assert any(key in result.robust for key in ["vcov_robust", "robust_vcov", "cov_params"])
 
     def test_robust_standard_errors_differ_from_naive(self, expanded_trial_data):
         """Test that robust SEs differ from model SEs (usually)."""
-        result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
         # Model has standard errors
         naive_se = result.model.bse
@@ -375,27 +324,20 @@ class TestTrialMSMEdgeCases:
 
     def test_missing_required_columns_raises_error(self, expanded_trial_data):
         """Test that missing required columns raises an error."""
-        data_missing = expanded_trial_data.drop(columns=['outcome'])
+        data_missing = expanded_trial_data.drop(columns=["outcome"])
 
         with pytest.raises((KeyError, Exception)):
-            trial_msm(
-                data=data_missing,
-                estimand_type="ITT",
-                quiet=True
-            )
+            trial_msm(data=data_missing, estimand_type="ITT", quiet=True)
 
     def test_with_missing_data_warns(self, expanded_trial_data):
         """Test that missing data triggers warning and complete-case analysis."""
         # Introduce some missing data
         data_with_na = expanded_trial_data.copy()
-        data_with_na.loc[0:10, 'age'] = np.nan
+        data_with_na.loc[0:10, "age"] = np.nan
 
         with pytest.warns(UserWarning, match="missing data"):
             result = trial_msm(
-                data=data_with_na,
-                estimand_type="ITT",
-                outcome_cov="age",
-                quiet=True
+                data=data_with_na, estimand_type="ITT", outcome_cov="age", quiet=True
             )
 
         assert isinstance(result, TEMSM)
@@ -409,7 +351,7 @@ class TestTrialMSMEdgeCases:
                 estimand_type="ITT",
                 first_followup=100,
                 last_followup=200,
-                quiet=True
+                quiet=True,
             )
 
 
@@ -419,13 +361,10 @@ class TestTrialMSMWhereCase:
     def test_where_case_single_condition(self, expanded_trial_data):
         """Test subsetting with single where_case condition."""
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            where_case=["age >= 50"],
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", where_case=["age >= 50"], quiet=True
         )
 
-        assert result.args['where_case'] == ["age >= 50"]
+        assert result.args["where_case"] == ["age >= 50"]
 
     def test_where_case_multiple_conditions(self, expanded_trial_data):
         """Test subsetting with multiple where_case conditions."""
@@ -433,10 +372,10 @@ class TestTrialMSMWhereCase:
             data=expanded_trial_data,
             estimand_type="ITT",
             where_case=["age >= 50", "baseline_var > 0"],
-            quiet=True
+            quiet=True,
         )
 
-        assert result.args['where_case'] == ["age >= 50", "baseline_var > 0"]
+        assert result.args["where_case"] == ["age >= 50", "baseline_var > 0"]
 
 
 class TestTrialMSMIntegration:
@@ -450,7 +389,7 @@ class TestTrialMSMIntegration:
             estimand_type="ITT",
             outcome_cov="age",
             analysis_weights="unweighted",
-            quiet=True
+            quiet=True,
         )
 
         # Verify complete workflow
@@ -461,11 +400,11 @@ class TestTrialMSMIntegration:
 
         # Check that treatment coefficient exists
         params = result.model.params
-        assert 'assigned_treatment' in params.index
+        assert "assigned_treatment" in params.index
 
         # With known effect (OR = 0.5), coefficient should be negative
         # (log(0.5) ≈ -0.693)
-        treatment_coef = params['assigned_treatment']
+        treatment_coef = params["assigned_treatment"]
         # Allow wide range due to random variation
         assert treatment_coef < 0, "Treatment should reduce outcome odds"
 
@@ -482,13 +421,13 @@ class TestTrialMSMIntegration:
             include_followup_time="followup_time",
             include_trial_period="trial_period",
             use_sample_weights=False,
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEMSM)
-        assert result.args['first_followup'] == 1
-        assert result.args['last_followup'] == 3
-        assert result.args['analysis_weights'] == "p99"
+        assert result.args["first_followup"] == 1
+        assert result.args["last_followup"] == 3
+        assert result.args["analysis_weights"] == "p99"
 
 
 class TestFitMSMAlias:
@@ -496,17 +435,9 @@ class TestFitMSMAlias:
 
     def test_fit_msm_alias(self, expanded_trial_data):
         """Test that fit_msm is an alias for trial_msm."""
-        result1 = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result1 = trial_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
-        result2 = fit_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            quiet=True
-        )
+        result2 = fit_msm(data=expanded_trial_data, estimand_type="ITT", quiet=True)
 
         # Both should return TEMSM objects
         assert isinstance(result1, TEMSM)
@@ -524,28 +455,25 @@ class TestTrialMSMParameters:
             outcome_cov="age",
             first_followup=1,
             last_followup=3,
-            quiet=True
+            quiet=True,
         )
 
         # Check that key parameters are stored
-        assert 'estimand_type' in result.args
-        assert 'outcome_cov' in result.args
-        assert 'first_followup' in result.args
-        assert 'last_followup' in result.args
-        assert 'model_formula' in result.args
+        assert "estimand_type" in result.args
+        assert "outcome_cov" in result.args
+        assert "first_followup" in result.args
+        assert "last_followup" in result.args
+        assert "model_formula" in result.args
 
     def test_model_formula_construction(self, expanded_trial_data):
         """Test that model formula is constructed correctly."""
         result = trial_msm(
-            data=expanded_trial_data,
-            estimand_type="ITT",
-            outcome_cov="age",
-            quiet=True
+            data=expanded_trial_data, estimand_type="ITT", outcome_cov="age", quiet=True
         )
 
-        formula = result.args['model_formula']
+        formula = result.args["model_formula"]
 
         # Formula should contain key components
-        assert 'outcome' in formula
-        assert 'assigned_treatment' in formula or result.args['estimand_type'] == "As-Treated"
-        assert 'age' in formula
+        assert "outcome" in formula
+        assert "assigned_treatment" in formula or result.args["estimand_type"] == "As-Treated"
+        assert "age" in formula

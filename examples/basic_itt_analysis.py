@@ -43,22 +43,24 @@ for patient_id in range(1, n_patients + 1):
         outcome_prob = 0.05 + 0.01 * period
         if treatment:
             outcome_prob *= 0.6  # 40% risk reduction
-        outcome_prob *= (1 + baseline_risk)
+        outcome_prob *= 1 + baseline_risk
 
         outcome = 1 if np.random.random() < outcome_prob else 0
         if outcome:
             has_outcome = True
 
-        data_list.append({
-            'id': patient_id,
-            'period': period,
-            'treatment': treatment,
-            'outcome': outcome,
-            'censored': outcome,
-            'eligible': 1,
-            'age': age,
-            'baseline_risk': baseline_risk
-        })
+        data_list.append(
+            {
+                "id": patient_id,
+                "period": period,
+                "treatment": treatment,
+                "outcome": outcome,
+                "censored": outcome,
+                "eligible": 1,
+                "age": age,
+                "baseline_risk": baseline_risk,
+            }
+        )
 
 data = pd.DataFrame(data_list)
 
@@ -81,7 +83,7 @@ prep = te.data_preparation(
     estimand_type="ITT",
     outcome_cov=["age", "baseline_risk"],
     use_censor_weights=False,
-    quiet=True
+    quiet=True,
 )
 
 print(f"   Expanded to {prep.N} observations")
@@ -91,12 +93,7 @@ print(f"   Trial periods: {prep.min_period} to {prep.max_period}")
 print("\n3. Fitting marginal structural model...")
 print("   Using weighted pooled logistic regression...")
 
-msm = te.trial_msm(
-    data=prep,
-    outcome_cov=["age"],
-    estimand_type="ITT",
-    quiet=True
-)
+msm = te.trial_msm(data=prep, outcome_cov=["age"], estimand_type="ITT", quiet=True)
 
 print("   Model fitted successfully")
 
@@ -108,7 +105,7 @@ print("-" * 60)
 treatment_coef = msm.model.params["assigned_treatment"]
 robust_se = msm.robust["bse"]["assigned_treatment"]
 z_score = treatment_coef / robust_se
-p_value = 2 * (1 - stats.norm.cdf(abs(z_score))) if 'stats' in dir() else None
+p_value = 2 * (1 - stats.norm.cdf(abs(z_score))) if "stats" in dir() else None
 
 # Convert log OR to OR
 odds_ratio = np.exp(treatment_coef)

@@ -48,17 +48,17 @@ def data_preparation(
     chunk_size: int = 500,
     separate_files: bool = False,
     quiet: bool = False,
-    **kwargs
+    **kwargs,
 ) -> TEDataPrep:
     """
     Prepare data for the sequence of emulated target trials.
-    
+
     This function expands observational data in the person-time format (i.e., the 'long' format)
     to emulate a sequence of target trials and also estimates the inverse probability of
     treatment and censoring weights as required.
-    
+
     Maps R's data_preparation() function.
-    
+
     Args:
         data: Input DataFrame in long format
         id: Column name for patient identifier
@@ -88,7 +88,7 @@ def data_preparation(
         separate_files: Save expanded data in separate CSV files?
         quiet: Suppress progress messages?
         **kwargs: Additional arguments passed to weight functions
-        
+
     Returns:
         TEDataPrep object containing:
             - data: Expanded DataFrame or list of file paths
@@ -129,17 +129,17 @@ def data_preparation(
         chunk_size=chunk_size,
         separate_files=separate_files,
         quiet=quiet,
-        **kwargs
+        **kwargs,
     )
-    
+
     args = check_estimand_data_prep(args)
-    
+
     # Select and rename columns
     data = select_data_cols(data, args)
-    
+
     quiet_msg(quiet, "Starting data manipulation")
     data = data_manipulation(data, use_censor=args["censor_at_switch"])
-    
+
     # Calculate weights if needed
     if args["use_censor_weights"] or args["use_switch_weights"]:
         weight_result = weight_func(
@@ -159,7 +159,7 @@ def data_preparation(
             data_dir=args.get("data_dir"),
             quiet=args["quiet"],
             glm_function=args["glm_function"],
-            **kwargs
+            **kwargs,
         )
         data = weight_result["data"]
         switch_models = weight_result.get("switch_models")
@@ -168,7 +168,7 @@ def data_preparation(
         data["wt"] = 1.0
         switch_models = None
         censor_models = None
-    
+
     quiet_msg(quiet, "Starting data extension")
     result = data_extension(
         data=data,
@@ -180,13 +180,13 @@ def data_preparation(
         where_var=args.get("where_var"),
         data_dir=args.get("data_dir"),
         separate_files=args["separate_files"],
-        chunk_size=args["chunk_size"]
+        chunk_size=args["chunk_size"],
     )
-    
+
     quiet_msg(quiet, "Summary of extended data:")
     quiet_msg(quiet, f"Number of observations: {result['N']}")
     quiet_line(quiet)
-    
+
     # Create result object
     prep_result = TEDataPrep(
         data=result["data"],
@@ -196,8 +196,7 @@ def data_preparation(
         data_template=result["data_template"],
         switch_models=switch_models,
         censor_models=censor_models,
-        parameters=args
+        parameters=args,
     )
-    
-    return prep_result
 
+    return prep_result

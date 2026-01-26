@@ -24,14 +24,14 @@ class TestDataPreparationBasic:
             treatment="treatment",
             outcome="outcome",
             eligible="censored",  # Using censored as proxy for eligible
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
-        assert hasattr(result, 'data')
-        assert hasattr(result, 'min_period')
-        assert hasattr(result, 'max_period')
-        assert hasattr(result, 'N')
+        assert hasattr(result, "data")
+        assert hasattr(result, "min_period")
+        assert hasattr(result, "max_period")
+        assert hasattr(result, "N")
 
     def test_data_preparation_with_simple_data(self, synthetic_data_simple):
         """Test data_preparation with simple synthetic data."""
@@ -42,7 +42,7 @@ class TestDataPreparationBasic:
             treatment="treatment",
             outcome="outcome",
             eligible="censored",
-            quiet=True
+            quiet=True,
         )
 
         # Check that data was expanded
@@ -51,8 +51,8 @@ class TestDataPreparationBasic:
         assert len(result.data) > 0
 
         # Check period bounds
-        assert result.min_period >= synthetic_data_simple['period'].min()
-        assert result.max_period <= synthetic_data_simple['period'].max()
+        assert result.min_period >= synthetic_data_simple["period"].min()
+        assert result.max_period <= synthetic_data_simple["period"].max()
 
     def test_data_preparation_preserves_data_structure(self, synthetic_data_simple):
         """Test that data_preparation preserves expected columns."""
@@ -63,11 +63,11 @@ class TestDataPreparationBasic:
             treatment="treatment",
             outcome="outcome",
             eligible="censored",
-            quiet=True
+            quiet=True,
         )
 
         # Check that expanded data has required columns
-        required_cols = ['id', 'period', 'outcome', 'trial_period', 'followup_time']
+        required_cols = ["id", "period", "outcome", "trial_period", "followup_time"]
         for col in required_cols:
             assert col in result.data.columns, f"Missing column: {col}"
 
@@ -85,13 +85,13 @@ class TestDataPreparationEstimands:
             outcome="outcome",
             eligible="eligible",
             estimand_type="ITT",
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
-        assert result.parameters['estimand_type'] == "ITT"
+        assert result.parameters["estimand_type"] == "ITT"
         # ITT should not use switch weights
-        assert not result.parameters.get('use_switch_weights', True)
+        assert not result.parameters.get("use_switch_weights", True)
 
     def test_pp_estimand(self, synthetic_data_complex):
         """Test per-protocol (PP) estimand."""
@@ -103,11 +103,11 @@ class TestDataPreparationEstimands:
             outcome="outcome",
             eligible="eligible",
             estimand_type="PP",
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
-        assert result.parameters['estimand_type'] == "PP"
+        assert result.parameters["estimand_type"] == "PP"
 
     def test_as_treated_estimand(self, synthetic_data_complex):
         """Test as-treated estimand."""
@@ -119,11 +119,11 @@ class TestDataPreparationEstimands:
             outcome="outcome",
             eligible="eligible",
             estimand_type="As-Treated",
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
-        assert result.parameters['estimand_type'] == "As-Treated"
+        assert result.parameters["estimand_type"] == "As-Treated"
 
     def test_invalid_estimand_raises_error(self, synthetic_data_simple):
         """Test that invalid estimand type raises an error."""
@@ -136,7 +136,7 @@ class TestDataPreparationEstimands:
                 outcome="outcome",
                 eligible="censored",
                 estimand_type="INVALID",
-                quiet=True
+                quiet=True,
             )
 
 
@@ -153,12 +153,12 @@ class TestDataPreparationWeights:
             outcome="outcome",
             eligible="censored",
             use_censor_weights=False,
-            quiet=True
+            quiet=True,
         )
 
         # Without weights, wt column should still exist and be 1.0
-        if 'wt' in result.data.columns:
-            assert (result.data['wt'] == 1.0).all()
+        if "wt" in result.data.columns:
+            assert (result.data["wt"] == 1.0).all()
 
     def test_with_censor_weights(self, synthetic_data_complex):
         """Test data_preparation with censoring weights."""
@@ -171,12 +171,12 @@ class TestDataPreparationWeights:
             eligible="eligible",
             use_censor_weights=True,
             cense="censored",
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
         # Censor weights should have been calculated
-        assert result.censor_models is not None or 'wt' in result.data.columns
+        assert result.censor_models is not None or "wt" in result.data.columns
 
 
 class TestDataPreparationPeriods:
@@ -193,7 +193,7 @@ class TestDataPreparationPeriods:
             outcome="outcome",
             eligible="eligible",
             first_period=first_period,
-            quiet=True
+            quiet=True,
         )
 
         assert result.min_period >= first_period
@@ -209,7 +209,7 @@ class TestDataPreparationPeriods:
             outcome="outcome",
             eligible="eligible",
             last_period=last_period,
-            quiet=True
+            quiet=True,
         )
 
         assert result.max_period <= last_period
@@ -227,7 +227,7 @@ class TestDataPreparationPeriods:
             eligible="eligible",
             first_period=first_period,
             last_period=last_period,
-            quiet=True
+            quiet=True,
         )
 
         assert result.min_period >= first_period
@@ -246,7 +246,7 @@ class TestDataPreparationEdgeCases:
             treatment="treatment",
             outcome="outcome",
             eligible="eligible",
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
@@ -255,7 +255,7 @@ class TestDataPreparationEdgeCases:
     def test_missing_required_column_raises_error(self, synthetic_data_simple):
         """Test that missing required column raises an error."""
         # Remove a required column
-        data_missing = synthetic_data_simple.drop(columns=['treatment'])
+        data_missing = synthetic_data_simple.drop(columns=["treatment"])
 
         with pytest.raises((KeyError, ValueError)):
             data_preparation(
@@ -265,12 +265,12 @@ class TestDataPreparationEdgeCases:
                 treatment="treatment",
                 outcome="outcome",
                 eligible="censored",
-                quiet=True
+                quiet=True,
             )
 
     def test_empty_dataframe_raises_error(self):
         """Test that empty DataFrame raises an error."""
-        empty_df = pd.DataFrame(columns=['id', 'period', 'treatment', 'outcome', 'eligible'])
+        empty_df = pd.DataFrame(columns=["id", "period", "treatment", "outcome", "eligible"])
 
         with pytest.raises((ValueError, IndexError)):
             data_preparation(
@@ -280,7 +280,7 @@ class TestDataPreparationEdgeCases:
                 treatment="treatment",
                 outcome="outcome",
                 eligible="eligible",
-                quiet=True
+                quiet=True,
             )
 
 
@@ -297,12 +297,12 @@ class TestDataPreparationCovariates:
             outcome="outcome",
             eligible="eligible",
             outcome_cov="age + baseline_risk",
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
         # Check that covariates were stored in parameters
-        assert 'outcome_cov' in result.parameters
+        assert "outcome_cov" in result.parameters
 
     def test_model_var_specification(self, synthetic_data_complex):
         """Test specifying model variables."""
@@ -314,11 +314,11 @@ class TestDataPreparationCovariates:
             outcome="outcome",
             eligible="eligible",
             model_var=["age", "baseline_risk"],
-            quiet=True
+            quiet=True,
         )
 
         assert isinstance(result, TEDataPrep)
-        assert 'model_var' in result.parameters or 'keeplist' in result.parameters
+        assert "model_var" in result.parameters or "keeplist" in result.parameters
 
 
 class TestDataPreparationOutput:
@@ -333,7 +333,7 @@ class TestDataPreparationOutput:
             treatment="treatment",
             outcome="outcome",
             eligible="censored",
-            quiet=True
+            quiet=True,
         )
 
         # data_template should be a zero-row DataFrame with the same structure
@@ -351,7 +351,7 @@ class TestDataPreparationOutput:
             treatment="treatment",
             outcome="outcome",
             eligible="eligible",
-            quiet=True
+            quiet=True,
         )
 
         assert result.N > 0
@@ -367,12 +367,12 @@ class TestDataPreparationOutput:
             outcome="outcome",
             eligible="censored",
             estimand_type="ITT",
-            quiet=True
+            quiet=True,
         )
 
         assert result.parameters is not None
         assert isinstance(result.parameters, dict)
-        assert 'estimand_type' in result.parameters
+        assert "estimand_type" in result.parameters
 
 
 class TestDataPreparationIntegration:
@@ -390,7 +390,7 @@ class TestDataPreparationIntegration:
             eligible="eligible",
             estimand_type="ITT",
             outcome_cov="age",
-            quiet=True
+            quiet=True,
         )
 
         # Verify complete workflow
@@ -402,9 +402,9 @@ class TestDataPreparationIntegration:
         assert result.data_template is not None
 
         # Check data integrity
-        assert not result.data['id'].isna().any()
-        assert not result.data['period'].isna().any()
-        assert result.data['outcome'].isin([0, 1]).all()
+        assert not result.data["id"].isna().any()
+        assert not result.data["period"].isna().any()
+        assert result.data["outcome"].isin([0, 1]).all()
 
     @pytest.mark.integration
     def test_full_workflow_with_weights(self, synthetic_data_complex):
@@ -420,7 +420,7 @@ class TestDataPreparationIntegration:
             use_censor_weights=True,
             cense="censored",
             outcome_cov="age + baseline_risk",
-            quiet=True
+            quiet=True,
         )
 
         # Verify complete workflow with weights
@@ -429,9 +429,9 @@ class TestDataPreparationIntegration:
         assert result.N > 0
 
         # Check that weights exist
-        assert 'wt' in result.data.columns
+        assert "wt" in result.data.columns
         # Weights should be positive
-        assert (result.data['wt'] > 0).all()
+        assert (result.data["wt"] > 0).all()
 
 
 class TestDataPreparationQuietMode:
@@ -446,7 +446,7 @@ class TestDataPreparationQuietMode:
             treatment="treatment",
             outcome="outcome",
             eligible="censored",
-            quiet=True
+            quiet=True,
         )
 
         captured = capsys.readouterr()
@@ -462,7 +462,7 @@ class TestDataPreparationQuietMode:
             treatment="treatment",
             outcome="outcome",
             eligible="censored",
-            quiet=False
+            quiet=False,
         )
 
         captured = capsys.readouterr()

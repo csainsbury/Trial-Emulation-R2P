@@ -59,17 +59,19 @@ for patient_id in range(1, n_patients + 1):
         if outcome:
             has_outcome = True
 
-        data_list.append({
-            'id': patient_id,
-            'period': period,
-            'treatment': treatment,
-            'outcome': outcome,
-            'censored': outcome,
-            'eligible': 1,
-            'age': age,
-            'female': female,
-            'cumulative_dose': cumulative_dose
-        })
+        data_list.append(
+            {
+                "id": patient_id,
+                "period": period,
+                "treatment": treatment,
+                "outcome": outcome,
+                "censored": outcome,
+                "eligible": 1,
+                "age": age,
+                "female": female,
+                "cumulative_dose": cumulative_dose,
+            }
+        )
 
 data = pd.DataFrame(data_list)
 
@@ -78,7 +80,7 @@ print(f"   Ever treated: {(data.groupby('id')['treatment'].max() == 1).sum()}")
 print(f"   Total outcomes: {data['outcome'].sum()}")
 
 # Analyze treatment patterns
-switches = data.groupby('id')['treatment'].apply(lambda x: (x.diff() != 0).sum()).sum()
+switches = data.groupby("id")["treatment"].apply(lambda x: (x.diff() != 0).sum()).sum()
 print(f"   Treatment switches: {switches}")
 
 # Step 2: Analyze with different estimands
@@ -99,14 +101,11 @@ prep_itt = te.data_preparation(
     estimand_type="ITT",
     outcome_cov=["age", "female"],
     use_censor_weights=False,
-    quiet=True
+    quiet=True,
 )
 
 msm_itt = te.trial_msm(
-    data=prep_itt,
-    outcome_cov=["age", "female"],
-    estimand_type="ITT",
-    quiet=True
+    data=prep_itt, outcome_cov=["age", "female"], estimand_type="ITT", quiet=True
 )
 
 coef_itt = msm_itt.model.params["assigned_treatment"]
@@ -115,12 +114,12 @@ or_itt = np.exp(coef_itt)
 or_itt_lower = np.exp(coef_itt - 1.96 * se_itt)
 or_itt_upper = np.exp(coef_itt + 1.96 * se_itt)
 
-results['ITT'] = {
-    'coef': coef_itt,
-    'se': se_itt,
-    'or': or_itt,
-    'ci_lower': or_itt_lower,
-    'ci_upper': or_itt_upper
+results["ITT"] = {
+    "coef": coef_itt,
+    "se": se_itt,
+    "or": or_itt,
+    "ci_lower": or_itt_lower,
+    "ci_upper": or_itt_upper,
 }
 
 print(f"      OR: {or_itt:.3f} (95% CI: [{or_itt_lower:.3f}, {or_itt_upper:.3f}])")
@@ -138,7 +137,7 @@ prep_pp = te.data_preparation(
     outcome_cov=["age", "female"],
     use_censor_weights=True,
     cense="censored",
-    quiet=True
+    quiet=True,
 )
 
 msm_pp = te.trial_msm(
@@ -146,7 +145,7 @@ msm_pp = te.trial_msm(
     outcome_cov=["age", "female"],
     estimand_type="PP",
     analysis_weights="p99",
-    quiet=True
+    quiet=True,
 )
 
 coef_pp = msm_pp.model.params["assigned_treatment"]
@@ -155,12 +154,12 @@ or_pp = np.exp(coef_pp)
 or_pp_lower = np.exp(coef_pp - 1.96 * se_pp)
 or_pp_upper = np.exp(coef_pp + 1.96 * se_pp)
 
-results['PP'] = {
-    'coef': coef_pp,
-    'se': se_pp,
-    'or': or_pp,
-    'ci_lower': or_pp_lower,
-    'ci_upper': or_pp_upper
+results["PP"] = {
+    "coef": coef_pp,
+    "se": se_pp,
+    "or": or_pp,
+    "ci_lower": or_pp_lower,
+    "ci_upper": or_pp_upper,
 }
 
 print(f"      OR: {or_pp:.3f} (95% CI: [{or_pp_lower:.3f}, {or_pp_upper:.3f}])")
@@ -178,7 +177,7 @@ prep_at = te.data_preparation(
     outcome_cov=["age", "female"],
     use_censor_weights=True,
     cense="censored",
-    quiet=True
+    quiet=True,
 )
 
 msm_at = te.trial_msm(
@@ -186,7 +185,7 @@ msm_at = te.trial_msm(
     outcome_cov=["age", "female"],
     estimand_type="As-Treated",
     analysis_weights="p99",
-    quiet=True
+    quiet=True,
 )
 
 # For As-Treated, look at dose coefficient
@@ -198,12 +197,12 @@ if dose_term in msm_at.model.params:
     or_at_lower = np.exp(coef_at - 1.96 * se_at)
     or_at_upper = np.exp(coef_at + 1.96 * se_at)
 
-    results['As-Treated'] = {
-        'coef': coef_at,
-        'se': se_at,
-        'or': or_at,
-        'ci_lower': or_at_lower,
-        'ci_upper': or_at_upper
+    results["As-Treated"] = {
+        "coef": coef_at,
+        "se": se_at,
+        "or": or_at,
+        "ci_lower": or_at_lower,
+        "ci_upper": or_at_upper,
     }
 
     print(f"      OR per dose unit: {or_at:.3f} (95% CI: [{or_at_lower:.3f}, {or_at_upper:.3f}])")
@@ -218,9 +217,7 @@ print("-" * 70)
 
 for estimand, vals in results.items():
     ci_str = f"[{vals['ci_lower']:.3f}, {vals['ci_upper']:.3f}]"
-    print("{:<15} {:<10.3f} {:<10.3f} {:<25}".format(
-        estimand, vals['or'], vals['se'], ci_str
-    ))
+    print("{:<15} {:<10.3f} {:<10.3f} {:<25}".format(estimand, vals["or"], vals["se"], ci_str))
 
 # Interpretation
 print("\n" + "=" * 70)
@@ -238,7 +235,7 @@ print("  - Uses censoring weights to handle treatment switching")
 print("  - Typically larger effect size than ITT")
 print("  - Relevant for biological/mechanistic questions")
 
-if 'As-Treated' in results:
+if "As-Treated" in results:
     print("\nAs-Treated:")
     print("  - Effect of actually receiving treatment")
     print("  - Accounts for cumulative exposure (dose)")

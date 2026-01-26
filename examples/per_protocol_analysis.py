@@ -57,16 +57,18 @@ for patient_id in range(1, n_patients + 1):
         if outcome:
             has_outcome = True
 
-        data_list.append({
-            'id': patient_id,
-            'period': period,
-            'treatment': treatment,
-            'outcome': outcome,
-            'censored': outcome,  # Censored at outcome
-            'eligible': 1,
-            'age': age,
-            'comorbidity_score': comorbidity_score
-        })
+        data_list.append(
+            {
+                "id": patient_id,
+                "period": period,
+                "treatment": treatment,
+                "outcome": outcome,
+                "censored": outcome,  # Censored at outcome
+                "eligible": 1,
+                "age": age,
+                "comorbidity_score": comorbidity_score,
+            }
+        )
 
 data = pd.DataFrame(data_list)
 
@@ -74,7 +76,7 @@ print(f"   Created dataset with {len(data)} person-periods")
 print(f"   {data['id'].nunique()} patients across {data['period'].nunique()} periods")
 
 # Count treatment switches
-switches = data.groupby('id')['treatment'].apply(lambda x: (x.diff() != 0).sum()).sum()
+switches = data.groupby("id")["treatment"].apply(lambda x: (x.diff() != 0).sum()).sum()
 print(f"   Treatment switches observed: {switches}")
 print(f"   Outcomes observed: {data['outcome'].sum()}")
 
@@ -95,7 +97,7 @@ prep = te.data_preparation(
     cense="censored",
     cense_d_cov=["age", "comorbidity_score"],
     cense_n_cov="~1",
-    quiet=True
+    quiet=True,
 )
 
 print(f"   Expanded to {prep.N} observations")
@@ -110,7 +112,7 @@ msm = te.trial_msm(
     outcome_cov=["age", "comorbidity_score"],
     estimand_type="PP",
     analysis_weights="p99",  # Truncate extreme weights at 99th percentile
-    quiet=True
+    quiet=True,
 )
 
 print("   Model fitted with truncated weights")
@@ -142,8 +144,8 @@ if treatment_coef < 0:
     print(f"  among those who adhered to treatment protocol")
 
 print("\nWeight Summary:")
-if isinstance(prep.data, pd.DataFrame) and 'wt' in prep.data.columns:
-    weights = prep.data['wt'].dropna()
+if isinstance(prep.data, pd.DataFrame) and "wt" in prep.data.columns:
+    weights = prep.data["wt"].dropna()
     print(f"  Mean weight: {weights.mean():.3f}")
     print(f"  Median weight: {weights.median():.3f}")
     print(f"  Min weight: {weights.min():.3f}")
