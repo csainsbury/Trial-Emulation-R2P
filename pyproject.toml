@@ -10,19 +10,36 @@ readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 authors = [
-    {name = "TrialEmulation Contributors"}
+    {name = "Xander Vermeulen", email = "Xander.Vermeulen@mwdh.co.uk"},
+    {name = "Chris Sainsbury", email = "chris.sainsbury@mwdh.co.uk"},
+]
+maintainers = [
+    {name = "Xander Vermeulen", email = "Xander.Vermeulen@mwdh.co.uk"},
 ]
 keywords = ["causal inference", "trial emulation", "marginal structural models", "epidemiology"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Science/Research",
+    "Intended Audience :: Healthcare Industry",
     "License :: OSI Approved :: Apache Software License",
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: Implementation :: CPython",
+    "Programming Language :: C++",
     "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Bio-Informatics",
+    "Topic :: Scientific/Engineering :: Medical Science Apps.",
+    "Operating System :: OS Independent",
 ]
+
+[project.urls]
+Homepage = "https://github.com/csainsbury/Trial-Emulation-R2P"
+Documentation = "https://trial-emulation.readthedocs.io"
+Repository = "https://github.com/csainsbury/Trial-Emulation-R2P"
+Issues = "https://github.com/csainsbury/Trial-Emulation-R2P/issues"
+Changelog = "https://github.com/csainsbury/Trial-Emulation-R2P/blob/main/CHANGELOG.md"
 
 dependencies = [
     "numpy>=1.20.0",
@@ -54,4 +71,38 @@ target-version = ['py310']
 python_version = "3.10"
 warn_return_any = true
 warn_unused_configs = true
+
+[tool.pytest.ini_options]
+minversion = "7.0"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = [
+    "-v",
+    "--cov=trial_emulation",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "cpp: marks tests that require C++ extension",
+]
+
+[tool.coverage.run]
+source = ["trial_emulation"]
+omit = ["tests/*", "*/tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+]
+fail_under = 70
+precision = 2
 

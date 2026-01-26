@@ -1,0 +1,36 @@
+cff-version: 1.2.0
+title: TrialEmulation (Python)
+message: "If you use this software, please cite it as below."
+type: software
+authors:
+  - family-names: Vermeulen
+    given-names: Xander
+    email: Xander.Vermeulen@mwdh.co.uk
+  - family-names: Sainsbury
+    given-names: Chris
+    email: chris.sainsbury@mwdh.co.uk
+repository-code: "https://github.com/csainsbury/Trial-Emulation-R2P"
+url: "https://trial-emulation.readthedocs.io"
+license: Apache-2.0
+version: 0.0.4.0
+date-released: 2026-01-26
+keywords:
+  - causal inference
+  - trial emulation
+  - marginal structural models
+  - epidemiology
+  - observational studies
+  - target trial
+abstract: >-
+  Python implementation of target trial emulation methods for causal
+  inference in observational time-to-event data. This package provides
+  tools to emulate a sequence of randomized trials from longitudinal
+  observational data and estimate treatment effects using marginal
+  structural models with inverse probability weighting.
+references:
+  - type: software
+    title: "TrialEmulation: Causal Analysis of Observational Time-to-Event Data"
+    authors:
+      - name: "Causal-LDA Team"
+    repository-code: "https://github.com/Causal-LDA/TrialEmulation"
+    notes: "Original R package implementation"
