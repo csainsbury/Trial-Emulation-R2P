@@ -96,6 +96,8 @@ def trial_msm(
         data = data[
             (data["followup_time"] >= first_followup) & (data["followup_time"] <= last_followup)
         ].copy()
+        if data.empty:
+            raise ValueError("No rows remain after follow-up time filtering")
 
     quiet_msg(quiet, "Preparing for model fitting")
 
@@ -128,6 +130,8 @@ def trial_msm(
         quiet_msg(quiet, f"Subsetting data with {', '.join(where_case)}")
         for condition in where_case:
             data = data.query(condition).copy()
+        if data.empty:
+            raise ValueError("No rows remain after where_case filtering")
 
     # Get weights
     if "weight" not in data.columns:
@@ -167,6 +171,8 @@ def trial_msm(
         data = data[complete_case_mask].copy()
         # Convert mask to numpy array for indexing w (which is now always a numpy array)
         w = w[complete_case_mask.values]
+        if data.empty:
+            raise ValueError("No rows remain after complete-case filtering")
 
     # Assert alignment between data and weights
     assert len(data) == len(w), (

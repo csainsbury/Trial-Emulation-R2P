@@ -59,12 +59,14 @@ def parse_formula_like(
             else:
                 return "1", []
         else:
-            # Treat as a single variable name or space-separated names
-            vars_list = x.split()
-            if len(vars_list) == 0:
+            # Treat strings without a leading ``~`` as a right-hand-side formula
+            # fragment.  Splitting on whitespace corrupts valid formula strings
+            # such as ``followup_time + I(followup_time**2)`` into ``+ + +``.
+            rhs = x.strip()
+            if rhs == "" or rhs == "1":
                 return "1", []
-            formula_str = " + ".join(vars_list)
-            return formula_str, vars_list
+            vars_list = _extract_vars_from_formula(rhs)
+            return rhs, vars_list
 
     raise TypeError(f"Expected str, list, or None, got {type(x)}")
 

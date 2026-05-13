@@ -69,7 +69,9 @@ class TestTrialMSMBasic:
         assert isinstance(result.robust, dict)
         # Robust results should contain either matrix/summary or vcov_robust/robust_vcov
         has_variance = any(key in result.robust for key in ["vcov_robust", "robust_vcov", "matrix"])
-        assert has_variance, f"No variance matrix found in robust results. Keys: {list(result.robust.keys())}"
+        assert (
+            has_variance
+        ), f"No variance matrix found in robust results. Keys: {list(result.robust.keys())}"
 
     def test_trial_msm_with_dataframe(self, expanded_trial_data):
         """Test trial_msm with DataFrame input."""
@@ -286,7 +288,7 @@ class TestTrialMSMEdgeCases:
 
     def test_missing_required_columns_raises_error(self, expanded_trial_data):
         """Test that missing required columns raises an error."""
-        data_missing = expanded_trial_data.drop(columns=["outcome"])
+        data_missing = expanded_trial_data.data.drop(columns=["outcome"])
 
         with pytest.raises((KeyError, Exception)):
             trial_msm(data=data_missing, estimand_type="ITT", quiet=True)
@@ -294,8 +296,8 @@ class TestTrialMSMEdgeCases:
     def test_with_missing_data_warns(self, expanded_trial_data):
         """Test that missing data triggers warning and complete-case analysis."""
         # Introduce some missing data
-        data_with_na = expanded_trial_data.copy()
-        data_with_na.loc[0:10, "age"] = np.nan
+        data_with_na = expanded_trial_data.data.copy()
+        data_with_na.iloc[0:10, data_with_na.columns.get_loc("age")] = np.nan
 
         with pytest.warns(UserWarning, match="missing data"):
             result = trial_msm(
@@ -307,12 +309,14 @@ class TestTrialMSMEdgeCases:
     def test_empty_dataframe_after_filtering(self, expanded_trial_data):
         """Test behavior when filtering results in empty DataFrame."""
         # Filter to impossible range
+        max_followup = int(expanded_trial_data.data["followup_time"].max())
+
         with pytest.raises((ValueError, Exception)):
             trial_msm(
                 data=expanded_trial_data,
                 estimand_type="ITT",
-                first_followup=100,
-                last_followup=200,
+                first_followup=max_followup + 1,
+                last_followup=max_followup + 2,
                 quiet=True,
             )
 

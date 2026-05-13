@@ -76,6 +76,9 @@ def robust_calculation(model: Any, data_id: pd.Series) -> Dict[str, Any]:
     result = {
         "summary": output,
         "matrix": var_matrix,
+        # Backwards-compatible alias for callers/tests expecting a statsmodels-like
+        # covariance key.
+        "cov_params": var_matrix,
     }
 
     return result

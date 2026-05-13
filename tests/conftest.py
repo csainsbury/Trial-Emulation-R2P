@@ -71,6 +71,21 @@ def expanded_trial_data_real(trial_example_data):
         quiet=True,
     )
 
+    # Several MSM unit tests use generic covariate names that are present in
+    # the synthetic fixtures (``age`` and ``baseline_var``).  The canonical R
+    # TrialEmulation example instead names comparable covariates ``nvarA`` and
+    # ``nvarB``.  Add aliases here so those tests can use the numerically stable
+    # real expanded data without depending on dataset-specific column names.
+    prep.data = prep.data.copy()
+    prep.data["age"] = prep.data["nvarB"]
+    prep.data["baseline_var"] = prep.data["nvarA"]
+
+    # Add a non-collinear dose column for MSM tests that exercise the
+    # As-Treated default formula (dose + I(dose**2)) without requiring a full
+    # As-Treated data-preparation run, which is numerically singular on this
+    # compact fixture.
+    prep.data["dose"] = prep.data["treatment"] + (0.1 * prep.data["followup_time"])
+
     return prep
 
 
