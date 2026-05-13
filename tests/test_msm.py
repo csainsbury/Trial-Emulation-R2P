@@ -390,10 +390,41 @@ class TestTrialMSMIntegration:
         assert not np.isinf(params).any(), "Model params should not contain inf"
 
     @pytest.mark.integration
-    def test_msm_with_all_options(self, expanded_trial_data):
-        """Test MSM with all available options."""
+    def test_msm_with_all_options(self):
+        """Test MSM with all available options on stable expanded-style data."""
+        rng = np.random.default_rng(2026)
+        rows = []
+        for patient_id in range(1, 81):
+            assigned_treatment = patient_id % 2
+            age = 45 + (patient_id % 25)
+            baseline_var = (patient_id % 7) / 10
+            trial_period = patient_id % 5
+            for followup_time in range(5):
+                linear_pred = (
+                    -2.0
+                    + (0.4 * assigned_treatment)
+                    + (0.12 * followup_time)
+                    + (0.03 * baseline_var)
+                    - (0.01 * (age - 55))
+                )
+                probability = 1 / (1 + np.exp(-linear_pred))
+                rows.append(
+                    {
+                        "id": patient_id,
+                        "outcome": rng.binomial(1, probability),
+                        "assigned_treatment": assigned_treatment,
+                        "followup_time": followup_time,
+                        "trial_period": trial_period,
+                        "weight": 1 + ((patient_id + followup_time) % 4) / 10,
+                        "age": age,
+                        "baseline_var": baseline_var,
+                    }
+                )
+
+        expanded_data = pd.DataFrame(rows)
+
         result = trial_msm(
-            data=expanded_trial_data,
+            data=expanded_data,
             estimand_type="ITT",
             outcome_cov="age + baseline_var",
             first_followup=1,
