@@ -4,9 +4,9 @@
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![Build Status](https://github.com/csainsbury/Trial-Emulation-R2P/workflows/Tests/badge.svg)](https://github.com/csainsbury/Trial-Emulation-R2P/actions)
 [![Code Coverage](https://img.shields.io/badge/coverage-27%25-orange.svg)](https://github.com/csainsbury/Trial-Emulation-R2P)
+[![PyPI version](https://badge.fury.io/py/trial-emulation.svg)](https://badge.fury.io/py/trial-emulation)
 
 <!-- Badges to add when infrastructure is ready:
-[![PyPI version](https://badge.fury.io/py/trial-emulation.svg)](https://badge.fury.io/py/trial-emulation)
 [![Documentation Status](https://readthedocs.org/projects/trial-emulation/badge/?version=latest)](https://trial-emulation.readthedocs.io/en/latest/?badge=latest)
 -->
 
@@ -37,9 +37,13 @@ This Python implementation provides the same functionality as the R TrialEmulati
 
 ## Installation
 
-> **Note**: This package is not yet published to PyPI. Currently install from source.
+### From PyPI
 
-### From Source (Current Method)
+```bash
+pip install trial-emulation
+```
+
+### From Source
 
 ```bash
 git clone https://github.com/csainsbury/Trial-Emulation-R2P.git
