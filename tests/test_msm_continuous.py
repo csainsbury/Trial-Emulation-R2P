@@ -247,6 +247,28 @@ def test_categorical_level_only_in_dropped_row_does_not_cause_false_rank_failure
     assert "C(site)[T.C]" not in result.model.params.index
 
 
+def test_can_skip_conditional_robust_variance_for_outer_resampling():
+    data = binary_frame()
+    result = trial_msm(
+        data=data,
+        outcome_family="binomial",
+        outcome_cov="baseline",
+        include_followup_time="~1",
+        include_trial_period="~1",
+        use_sample_weights=False,
+        compute_robust_variance=False,
+        quiet=True,
+    )
+
+    assert result.robust == {}
+    assert result.args["compute_robust_variance"] is False
+    assert result.args["variance_scope"] == "not_computed"
+    assert result.args["analysis_clusters"] == data["id"].nunique()
+    prediction = np.asarray(result.model.predict(data), dtype=float)
+    assert np.isfinite(prediction).all()
+    assert ((prediction > 0) & (prediction < 1)).all()
+
+
 def test_invalid_weights_and_outcome_family_fail_closed():
     data = continuous_frame()
     bad = data.copy()

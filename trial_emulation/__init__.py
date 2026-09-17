@@ -14,7 +14,7 @@ The main workflow consists of:
 5. Estimating ITT, PP, and As-Treated estimands
 """
 
-__version__ = "0.0.5.0"
+__version__ = "0.0.5.1"
 
 from .data_preparation import data_preparation
 from .msm import trial_msm, fit_msm

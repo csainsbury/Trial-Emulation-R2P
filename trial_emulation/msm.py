@@ -106,6 +106,7 @@ def trial_msm(
     use_sample_weights: bool = True,
     outcome_family: str = "binomial",
     small_sample_correction: bool = False,
+    compute_robust_variance: bool = True,
     quiet: bool = False,
     **kwargs,
 ) -> TEMSM:
@@ -135,6 +136,9 @@ def trial_msm(
         use_sample_weights: Multiply by ``sample_weight`` when present.
         outcome_family: ``binomial`` (logit) or ``gaussian`` (identity).
         small_sample_correction: Apply the conventional cluster sandwich factor.
+        compute_robust_variance: Compute the patient-clustered sandwich. Set to
+            ``False`` only when variance comes from an outer resampling procedure;
+            the fitted GLM and predictions are unchanged and ``robust`` is empty.
         quiet: Suppress progress output.
         **kwargs: Additional arguments passed to statsmodels ``GLM.fit``.
     """
@@ -254,16 +258,20 @@ def trial_msm(
 
     quiet_print(quiet, model.summary())
     quiet_line(quiet)
-    quiet_msg(quiet, "Calculating robust variance")
-    robust_model = robust_calculation(
-        model,
-        model_data["id"],
-        small_sample_correction=small_sample_correction,
-    )
-    quiet_msg(quiet, "Summary with robust standard error:")
-    quiet_print(quiet, robust_model["summary"])
-    quiet_line(quiet)
+    if compute_robust_variance:
+        quiet_msg(quiet, "Calculating robust variance")
+        robust_model = robust_calculation(
+            model,
+            model_data["id"],
+            small_sample_correction=small_sample_correction,
+        )
+        quiet_msg(quiet, "Summary with robust standard error:")
+        quiet_print(quiet, robust_model["summary"])
+        quiet_line(quiet)
+    else:
+        robust_model = {}
 
+    positive_weight_rows = int(np.count_nonzero(model_weights > 0))
     args = {
         "outcome_cov": outcome_cov_str,
         "estimand_type": estimand_type,
@@ -279,18 +287,21 @@ def trial_msm(
         "use_sample_weights": use_sample_weights,
         "outcome_family": outcome_family,
         "small_sample_correction": small_sample_correction,
+        "compute_robust_variance": compute_robust_variance,
         "model_formula": model_formula,
         "analysis_rows": int(len(model_data)),
-        "analysis_clusters": int(robust_model["n_clusters"]),
+        "analysis_clusters": int(model_data.loc[model_weights > 0, "id"].nunique()),
         "analysis_clusters_all_rows": int(model_data["id"].nunique()),
-        "analysis_positive_weight_rows": int(robust_model["n_positive_weight_rows"]),
+        "analysis_positive_weight_rows": positive_weight_rows,
         "analysis_weight_sum": float(model_weights.sum()),
         "working_model_scale": float(model.scale),
         "design_rank": int(
             np.linalg.matrix_rank(x_design.to_numpy(dtype=float)[model_weights > 0])
         ),
         "design_columns": int(x_design.shape[1]),
-        "variance_scope": robust_model["variance_scope"],
+        "variance_scope": (
+            robust_model["variance_scope"] if compute_robust_variance else "not_computed"
+        ),
     }
     return TEMSM(model=model, robust=robust_model, args=args)
 

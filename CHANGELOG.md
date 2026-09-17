@@ -68,6 +68,12 @@ For questions or issues, please visit: https://github.com/csainsbury/Trial-Emula
 
 ## [Unreleased]
 
+## [0.0.5.1] - 2026-09-18
+
+### Added
+
+- `compute_robust_variance=False` for outer-resampling workflows that need fitted MSM predictions but obtain uncertainty from the resampling distribution. The GLM, weights, and predictions are unchanged; `TEMSM.robust` is empty and `variance_scope` is `not_computed`.
+
 ## [0.0.5.0] - 2026-09-17
 
 ### Added
