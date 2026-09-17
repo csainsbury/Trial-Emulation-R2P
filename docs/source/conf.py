@@ -13,8 +13,8 @@ sys.path.insert(0, os.path.abspath('../..'))
 project = 'TrialEmulation'
 copyright = '2026, Xander Vermeulen, Chris Sainsbury'
 author = 'Xander Vermeulen, Chris Sainsbury'
-release = '0.0.4.0'
-version = '0.0.4'
+release = '0.0.5.0'
+version = '0.0.5'
 
 # -- General configuration ---------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#general-configuration

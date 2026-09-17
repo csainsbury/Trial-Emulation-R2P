@@ -28,8 +28,9 @@ This Python implementation provides the same functionality as the R TrialEmulati
   - Treatment switching weights for per-protocol and as-treated estimands
   - Censoring weights to account for informative censoring
   - Flexible covariate specification for numerator and denominator models
-- **Marginal Structural Models**: Fit weighted pooled logistic regression for time-to-event outcomes
-- **Robust Variance Estimation**: Cluster-robust standard errors using sandwich estimators
+- **Marginal Structural Models**: Fit weighted pooled logistic regression for time-to-event outcomes or Gaussian identity-link models for continuous outcomes
+- **Causal Analysis Weights**: Apply inverse-probability or overlap weights as estimating-equation weights
+- **Robust Variance Estimation**: Patient-clustered estimating-equation sandwich standard errors, with fitted-weight uncertainty handled by full-pipeline bootstrap
 - **Case-Control Sampling**: Efficient sampling of controls for large datasets
 - **Performance Optimized**: C++ extensions (pybind11) for computationally intensive operations
 - **Type Safety**: Comprehensive type hints throughout the codebase
@@ -122,6 +123,31 @@ The MSM provides:
 
 For ITT analyses, the coefficient for `assigned_treatment` represents the effect of being assigned to treatment at trial baseline, regardless of subsequent adherence.
 
+### Continuous outcomes
+
+For a continuous endpoint, provide one or more outcome rows per patient and select the Gaussian identity family. A direct one-index trial frame is appropriate when cohort construction has already selected one baseline trial per patient:
+
+```python
+continuous = pd.DataFrame({
+    "id": [1, 2, 3, 4],
+    "assigned_treatment": [0, 0, 1, 1],
+    "outcome": [-1.2, -0.7, -2.1, -1.8],
+    "weight": [0.8, 1.1, 0.9, 1.2],
+    "followup_time": [0, 0, 0, 0],
+    "trial_period": [0, 0, 0, 0],
+})
+
+msm = te.trial_msm(
+    data=continuous,
+    outcome_family="gaussian",
+    include_followup_time="~1",
+    include_trial_period="~1",
+    use_sample_weights=False,
+)
+```
+
+`weight` is treated as a causal/estimating-equation weight, not an inverse residual-variance weight. The package reports a patient-clustered sandwich covariance conditional on fitted weights. Use `msm.robust["summary"]` and `msm.robust["matrix"]` for fixed-weight inference; `msm.model.bse` and the ordinary GLM summary are working-model quantities, not causal standard errors. If treatment, censoring, or measurement weights were estimated, refit the full nuisance-to-outcome pipeline in a patient bootstrap for final uncertainty.
+
 ## Data Format
 
 Your input data should be in **long (person-time) format** with one row per person-period:
@@ -171,7 +197,7 @@ If you use this package in your research, please cite:
   author = {Vermeulen, Xander and Sainsbury, Chris},
   year = {2026},
   url = {https://github.com/csainsbury/Trial-Emulation-R2P},
-  version = {0.0.4.0}
+  version = {0.0.5.0}
 }
 ```
 
@@ -215,8 +241,8 @@ This approach ensures that our Python implementation produces results consistent
 
 ### Test Coverage
 
-Current test status (as of v0.0.4.0):
-- **39 tests passing** + 1 skipped (Python 3.14 compatibility) - all core functionality covered
+Current test status (as of v0.0.5.0):
+- **92 tests passing** + 1 skipped (Python 3.14 compatibility) - all core functionality covered
 - **27% code coverage** across main modules (focused on core workflow validation)
 - ✓ **Integration tests pass** with real R package data
 - ✓ **Core workflow validated**: `data_preparation()` → `trial_msm()` → results
@@ -227,8 +253,8 @@ Key tested functionality:
 - Data preparation and trial expansion
 - Multiple estimand types (ITT, PP, As-Treated)
 - Inverse probability weighting (treatment and censoring)
-- Marginal structural model fitting
-- Robust variance estimation
+- Binary and continuous marginal structural model fitting
+- Weighted estimating equations and patient-clustered sandwich variance
 - Various analysis options (weight truncation, period filtering, etc.)
 
 ### Running Tests

@@ -68,7 +68,29 @@ For questions or issues, please visit: https://github.com/csainsbury/Trial-Emula
 
 ## [Unreleased]
 
-### Planned for v0.0.5.0
+## [0.0.5.0] - 2026-09-17
+
+### Added
+
+- Gaussian identity-link marginal structural models for continuous outcomes via `trial_msm(outcome_family="gaussian")`
+- Explicit patient-clustered estimating-equation sandwich covariance with fixed causal weights
+- Formula-row, weight, cluster, outcome-domain, rank, and convergence validation
+- Tests for weighted arm-mean identity, manual sandwich agreement, weight-scale invariance, within-cluster row-splitting invariance, and binary compatibility
+
+### Fixed
+
+- Analysis weights are now applied by statsmodels GLM rather than being passed to discrete `Logit.fit()`, where they were not reliable estimation weights
+- Robust scores and expected-information bread use a fixed working scale, preserving inference with zero or normalized causal weights
+- Missing values in unrelated columns no longer trigger complete-case exclusion; only formula variables determine retained model rows
+
+### Notes
+
+- The sandwich covariance is conditional on fitted weights. Full-pipeline uncertainty for estimated treatment/censoring/measurement weights requires patient bootstrap or stacked estimating equations.
+- The robust covariance now defaults to no finite-cluster correction. Earlier releases delegated to statsmodels `cov_cluster`, whose default applied a row/cluster-count correction; set `small_sample_correction=True` to request the explicit conventional factor.
+- Use `TEMSM.robust` for fixed-weight inference. `TEMSM.model.bse` and the ordinary statsmodels GLM summary remain working-model quantities, not causal standard errors.
+- No likelihood-ratio or information-criterion interpretation is claimed for causally weighted models.
+
+### Planned beyond v0.0.5.0
 
 - Improve test coverage to 80%+ (currently 65%)
 - Complete API documentation with docstring examples
