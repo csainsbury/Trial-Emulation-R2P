@@ -1,0 +1,3 @@
+[submodule "R_source"]
+	path = R_source
+	url = https://github.com/Causal-LDA/TrialEmulation.git
