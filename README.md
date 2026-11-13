@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Python](https://img.shields.io/badge/python-3.10%20%7C%203.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)](https://www.python.org/)
 [![Build Status](https://github.com/csainsbury/Trial-Emulation-R2P/workflows/Tests/badge.svg)](https://github.com/csainsbury/Trial-Emulation-R2P/actions)
-[![Code Coverage](https://img.shields.io/badge/coverage-27%25-orange.svg)](https://github.com/csainsbury/Trial-Emulation-R2P)
+[![Code Coverage](https://img.shields.io/badge/coverage-83%25-green.svg)](https://github.com/csainsbury/Trial-Emulation-R2P)
 [![PyPI version](https://badge.fury.io/py/trial-emulation.svg)](https://badge.fury.io/py/trial-emulation)
 
 <!-- Badges to add when infrastructure is ready:
@@ -241,13 +241,10 @@ This approach ensures that our Python implementation produces results consistent
 
 ### Test Coverage
 
-Current test status (as of v0.0.5.0):
-- **92 tests passing** + 1 skipped (Python 3.14 compatibility) - all core functionality covered
-- **27% code coverage** across main modules (focused on core workflow validation)
-- ✓ **Integration tests pass** with real R package data
-- ✓ **Core workflow validated**: `data_preparation()` → `trial_msm()` → results
-- ✓ **Proven to work** on real epidemiological data (1.9M+ observations after expansion)
-- ✓ **Multi-platform testing** via GitHub Actions (Linux, macOS, Windows)
+Current test status (as of v0.0.5.2):
+- **R parity suite** (`tests/test_r_parity.py`) against TrialEmulation 0.0.4.9 for ITT, PP and As-Treated preparation, switching and censoring weights, weight models and MSM coefficients with robust standard errors (reference outputs and generator in `tests/data/r_reference/`)
+- Simulation checks that the weighted Gaussian MSM recovers a known continuous effect (ITT and PP) and that the patient-bootstrap mode is consistent
+- ✓ **Multi-platform testing** via GitHub Actions (Linux, macOS, Windows; Python 3.10–3.12)
 
 Key tested functionality:
 - Data preparation and trial expansion

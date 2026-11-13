@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "trial-emulation"
-version = "0.0.5.1"
+version = "0.0.5.2"
 description = "Python port of TrialEmulation R package for causal analysis of observational time-to-event data"
 readme = "README.md"
 requires-python = ">=3.10"
