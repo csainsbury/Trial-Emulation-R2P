@@ -105,8 +105,10 @@ def p99_weight(weight):
     """
     import numpy as np
 
-    weight_array = np.asarray(weight)
-    p99 = np.percentile(weight_array, [1, 99])
+    weight_array = np.asarray(weight, dtype=float)
+    # R: quantile(weight, prob = c(0.01, 0.99), type = 1), the inverse of the
+    # empirical distribution function.
+    p99 = np.quantile(weight_array, [0.01, 0.99], method="inverted_cdf")
     return limit_weight(weight_array, p99[0], p99[1])
 
 
