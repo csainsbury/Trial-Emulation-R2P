@@ -5,7 +5,6 @@ Tests the fitting of marginal structural models using weighted pooled logistic r
 and robust variance estimation.
 """
 
-import sys
 import pytest
 import pandas as pd
 import numpy as np
@@ -106,17 +105,26 @@ class TestTrialMSMEstimands:
 
         assert result.args["estimand_type"] == "PP"
 
-    @pytest.mark.skipif(
-        sys.version_info >= (3, 14),
-        reason="Python 3.14 has patsy compatibility issue with dose formulas (KeyError in error formatting)",
-    )
-    def test_as_treated_estimand(self, expanded_trial_data):
-        """Test as-treated estimand."""
-        result = trial_msm(data=expanded_trial_data, estimand_type="As-Treated", quiet=True)
+    def test_as_treated_estimand(self, expanded_trial_data_as_treated):
+        """Test as-treated estimand on data prepared with estimand_type='As-Treated'.
+
+        As in R, only As-Treated preparation produces the ``dose`` column and
+        the switching weights that the As-Treated MSM uses.
+        """
+        result = trial_msm(
+            data=expanded_trial_data_as_treated,
+            estimand_type="As-Treated",
+            outcome_cov="nvarA + nvarB",
+            use_sample_weights=False,
+            quiet=True,
+        )
 
         assert result.args["estimand_type"] == "As-Treated"
         # As-Treated should use dose in formula
         assert "dose" in result.args["model_formula"]
+        names = list(result.robust["summary"]["names"])
+        assert "dose" in names and "I(dose ** 2)" in names
+        assert result.args["analysis_rows"] == expanded_trial_data_as_treated.N
 
     def test_invalid_estimand_raises_error(self, expanded_trial_data):
         """Test that invalid estimand type raises ValueError."""
