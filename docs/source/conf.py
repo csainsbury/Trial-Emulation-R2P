@@ -13,7 +13,7 @@ sys.path.insert(0, os.path.abspath('../..'))
 project = 'TrialEmulation'
 copyright = '2026, Xander Vermeulen, Chris Sainsbury'
 author = 'Xander Vermeulen, Chris Sainsbury'
-release = '0.0.5.1'
+release = '0.0.5.2'
 version = '0.0.5'
 
 # -- General configuration ---------------------------------------------------

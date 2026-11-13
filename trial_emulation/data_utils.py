@@ -299,8 +299,8 @@ def check_estimand_data_prep(args: Dict[str, Any]) -> Dict[str, Any]:
 
     # Add model_var variables to keeplist
     _, model_vars = parse_formula_like(model_var_str)
-    keeplist = args.get("keeplist", [])
-    keeplist.extend(model_vars)
-    args["keeplist"] = list(set(keeplist))  # Remove duplicates
+    keeplist = list(args.get("keeplist", [])) + list(model_vars)
+    # Ordered de-duplication (R: unique(c(keeplist, all.vars(model_var)))).
+    args["keeplist"] = list(dict.fromkeys(keeplist))
 
     return args

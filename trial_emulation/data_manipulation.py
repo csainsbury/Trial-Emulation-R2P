@@ -6,6 +6,8 @@ Maps R's data_manipulation() function.
 """
 
 from typing import Optional
+import warnings
+
 import pandas as pd
 import numpy as np
 
@@ -44,79 +46,61 @@ def data_manipulation(data: pd.DataFrame, use_censor: bool = True) -> pd.DataFra
         raise ValueError(f"Missing required columns: {missing_cols}")
 
     data = data.copy()
+    ids = data["id"]
 
-    # Remove observations before eligibility
-    # More efficient approach
-    min_eligible_period = data[data["eligible"] == 1].groupby("id")["period"].min()
-    data["after_eligibility"] = data.apply(
-        lambda row: row["period"] >= min_eligible_period.get(row["id"], np.inf), axis=1
+    # Remove observations before the first eligible period (R: period >=
+    # .SD[eligible == 1, min(period, Inf)] by id). Patients never eligible are
+    # removed entirely.
+    first_eligible = data["period"].where(data["eligible"] == 1).groupby(ids).transform("min")
+    after_eligibility = data["period"] >= first_eligible.fillna(np.inf)
+    if not after_eligibility.all():
+        warnings.warn("Observations before trial eligibility were removed", UserWarning)
+        data = data[after_eligibility].copy()
+
+    # Remove observations after the first outcome event.
+    first_event = data["period"].where(data["outcome"] == 1).groupby(data["id"]).transform("min")
+    after_event = data["period"] > first_event.fillna(np.inf)
+    if after_event.any():
+        warnings.warn("Observations after the outcome occurred were removed", UserWarning)
+        data = data[~after_event].copy()
+
+    # Event time from each patient's last row (R: .SD[.N, list(period, outcome)]).
+    last_rows = data.groupby("id", sort=False).tail(1)
+    event_data = pd.DataFrame(
+        {
+            "id": last_rows["id"].to_numpy(),
+            "time_of_event": np.where(
+                last_rows["outcome"].notna() & (last_rows["outcome"] == 1),
+                last_rows["period"].astype(float),
+                9999.0,
+            ),
+        }
     )
 
-    if not data["after_eligibility"].all():
-        print("Warning: Observations before trial eligibility were removed")
-        data = data[data["after_eligibility"]].copy()
-
-    data = data.drop(columns=["after_eligibility"])
-
-    # Remove observations after the outcome event
-    min_outcome_period = data[data["outcome"] == 1].groupby("id")["period"].min()
-    data["after_event"] = data.apply(
-        lambda row: row["period"] > min_outcome_period.get(row["id"], np.inf), axis=1
-    )
-
-    if data["after_event"].any():
-        print("Warning: Observations after the outcome occurred were removed")
-        data = data[~data["after_event"]].copy()
-
-    data = data.drop(columns=["after_event"])
-
-    # Calculate event time
-    event_data = data.groupby("id").agg({"period": "last", "outcome": "last"}).reset_index()
-    event_data["time_of_event"] = np.where(
-        (event_data["outcome"].notna()) & (event_data["outcome"] == 1),
-        event_data["period"].astype(float),
-        9999.0,
-    )
-    event_data = event_data[["id", "time_of_event"]]
-
-    # Join time_of_event back to main data
     sw_data = data.merge(event_data, on="id", how="left")
 
-    # Compute first flag
-    sw_data["first"] = ~sw_data.duplicated(subset=["id"])
+    by_id = sw_data.groupby("id", sort=False)
+    sw_data["first"] = ~sw_data["id"].duplicated()
 
-    # Compute lagged treatment
-    sw_data["am_1"] = sw_data.groupby("id")["treatment"].shift(1, fill_value=0)
+    # Lagged treatment within patient; 0 on the first row.
+    sw_data["am_1"] = by_id["treatment"].shift(1)
     sw_data.loc[sw_data["first"], "am_1"] = 0
 
-    # Compute cumulative treatment
-    sw_data["cumA"] = 0
-    sw_data.loc[sw_data["first"], "cumA"] = sw_data.loc[sw_data["first"], "treatment"]
-    sw_data["cumA"] = sw_data.groupby("id")["cumA"].cumsum()
-
-    # Compute switch indicator
-    sw_data["switch"] = 0
-    sw_data.loc[sw_data["first"], "switch"] = 0
-    sw_data.loc[~sw_data["first"], "switch"] = (
-        sw_data.loc[~sw_data["first"], "am_1"] != sw_data.loc[~sw_data["first"], "treatment"]
-    ).astype(int)
-
-    # Compute regime start
-    sw_data["regime_start"] = np.nan
-    sw_data.loc[sw_data["first"], "regime_start"] = sw_data.loc[sw_data["first"], "period"]
-    sw_data.loc[sw_data["switch"] == 1, "regime_start"] = sw_data.loc[
-        sw_data["switch"] == 1, "period"
-    ]
-    sw_data["regime_start"] = sw_data.groupby("id")["regime_start"].ffill()
-
-    # Compute time_on_regime
-    sw_data["regime_start_shift"] = sw_data.groupby("id")["regime_start"].shift(1)
-    sw_data["time_on_regime"] = np.nan
-    sw_data.loc[~sw_data["first"], "time_on_regime"] = (
-        sw_data.loc[~sw_data["first"], "period"]
-        - sw_data.loc[~sw_data["first"], "regime_start_shift"]
+    # Treatment switch indicator.
+    sw_data["switch"] = np.where(
+        sw_data["first"], 0, (sw_data["am_1"] != sw_data["treatment"]).astype(int)
     )
-    sw_data = sw_data.drop(columns=["regime_start_shift"])
+
+    # Regime start and time on the current regime.
+    regime_start = sw_data["period"].where(sw_data["first"] | (sw_data["switch"] == 1))
+    sw_data["regime_start"] = regime_start.groupby(sw_data["id"], sort=False).ffill()
+    regime_start_shift = sw_data.groupby("id", sort=False)["regime_start"].shift(1)
+    sw_data["time_on_regime"] = np.where(
+        sw_data["first"], 0.0, sw_data["period"] - regime_start_shift
+    )
+
+    # Cumulative treatment received up to and including this period.
+    sw_data["cumA"] = sw_data.groupby("id", sort=False)["treatment"].cumsum()
 
     # Handle censoring state machine
     if use_censor:
@@ -145,7 +129,9 @@ def data_manipulation(data: pd.DataFrame, use_censor: bool = True) -> pd.DataFra
                 sw_data["eligible1_sw"] = result["eligible1_sw"]
                 sw_data["delete"] = result["delete"]
             except Exception as e:
-                print(f"Warning: C++ censoring function failed, using Python fallback: {e}")
+                warnings.warn(
+                    f"C++ censoring function failed, using Python fallback: {e}", RuntimeWarning
+                )
                 sw_data = _censor_func_python(sw_data)
         else:
             sw_data = _censor_func_python(sw_data)
@@ -172,8 +158,8 @@ def data_manipulation(data: pd.DataFrame, use_censor: bool = True) -> pd.DataFra
     sw_data.loc[sw_data["am_1"] == 0, "eligible0"] = 1
     sw_data.loc[sw_data["am_1"] == 1, "eligible1"] = 1
 
-    # Sort by id
-    sw_data = sw_data.sort_values("id").reset_index(drop=True)
+    # Key by id (R: setkeyv(sw_data, "id"), a stable sort).
+    sw_data = sw_data.sort_values("id", kind="stable").reset_index(drop=True)
 
     return sw_data
 
@@ -210,8 +196,13 @@ def _censor_func_python(sw_data: pd.DataFrame) -> pd.DataFrame:
     eligible1_sw = np.zeros(n, dtype=int)
     delete_flag = np.zeros(n, dtype=bool)
 
+    first_v = sw_data["first"].to_numpy(dtype=bool)
+    eligible_v = sw_data["eligible"].to_numpy()
+    treatment_v = sw_data["treatment"].to_numpy()
+    switch_v = sw_data["switch"].to_numpy()
+
     for i in range(n):
-        if sw_data.iloc[i]["first"]:
+        if first_v[i]:
             started0_ = 0
             started1_ = 0
             stop0_ = 0
@@ -227,10 +218,10 @@ def _censor_func_python(sw_data: pd.DataFrame) -> pd.DataFrame:
             eligible0_sw_ = 0
             eligible1_sw_ = 0
 
-        if started0_ == 0 and started1_ == 0 and sw_data.iloc[i]["eligible"] == 1:
-            if sw_data.iloc[i]["treatment"] == 0:
+        if started0_ == 0 and started1_ == 0 and eligible_v[i] == 1:
+            if treatment_v[i] == 0:
                 started0_ = 1
-            elif sw_data.iloc[i]["treatment"] == 1:
+            elif treatment_v[i] == 1:
                 started1_ = 1
 
         if started0_ == 1 and stop0_ == 0:
@@ -243,15 +234,15 @@ def _censor_func_python(sw_data: pd.DataFrame) -> pd.DataFrame:
             eligible0_sw_ = 0
             eligible1_sw_ = 0
 
-        if sw_data.iloc[i]["switch"] == 1:
-            if sw_data.iloc[i]["eligible"] == 1:
-                if sw_data.iloc[i]["treatment"] == 1:
+        if switch_v[i] == 1:
+            if eligible_v[i] == 1:
+                if treatment_v[i] == 1:
                     started1_ = 1
                     stop1_ = 0
                     started0_ = 0
                     stop0_ = 0
                     eligible1_sw_ = 1
-                elif sw_data.iloc[i]["treatment"] == 0:
+                elif treatment_v[i] == 0:
                     started0_ = 1
                     stop0_ = 0
                     started1_ = 0

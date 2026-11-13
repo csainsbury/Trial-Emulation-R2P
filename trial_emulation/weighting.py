@@ -2,18 +2,25 @@
 Weight calculation functions.
 
 Implements inverse probability weighting for treatment switching and censoring.
-Maps R's weighting.R functions.
+Maps R's weighting.R / data_utils.R weight functions (TrialEmulation 0.0.4.9).
 """
 
 from typing import Dict, List, Optional, Any, Union
-import pandas as pd
-import numpy as np
-from statsmodels.formula.api import logit
-from statsmodels.discrete.discrete_model import LogitResults
+import os
+import pickle
 import warnings
+
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+from statsmodels.formula.api import glm
 
 from .formula_utils import parse_formula_like
 from .utils import quiet_msg, quiet_print
+
+# Internal response column for censoring models: R fits ``1 - cense ~ ...``,
+# i.e. the probability of remaining uncensored.
+_UNCENSORED = "_te_uncensored"
 
 
 def weight_func(
@@ -68,23 +75,22 @@ def weight_func(
     """
     sw_data = sw_data.copy()
 
-    switch_models = {}
-    censor_models = {}
+    switch_models: Dict[str, Any] = {}
+    censor_models: Dict[str, Any] = {}
+
+    elig_col_0 = _resolve_eligible_wts_col(sw_data, eligible_wts_0, "eligible_wts_0")
+    elig_col_1 = _resolve_eligible_wts_col(sw_data, eligible_wts_1, "eligible_wts_1")
 
     # Switching weights
     if use_switch_weights:
-        switch_d_formula, _ = parse_formula_like(switch_d_cov)
-        switch_n_formula, _ = parse_formula_like(switch_n_cov)
-
-        # Add treatment to LHS
-        switch_d_formula = f"treatment ~ {switch_d_formula}"
-        switch_n_formula = f"treatment ~ {switch_n_formula}"
+        switch_d_formula = f"treatment ~ {parse_formula_like(switch_d_cov)[0]}"
+        switch_n_formula = f"treatment ~ {parse_formula_like(switch_n_cov)[0]}"
 
         switch_results = fit_switch_weights(
             switch_d_cov=switch_d_formula,
             switch_n_cov=switch_n_formula,
-            eligible_wts_0=eligible_wts_0,
-            eligible_wts_1=eligible_wts_1,
+            eligible_wts_0=elig_col_0,
+            eligible_wts_1=elig_col_1,
             sw_data=sw_data,
             quiet=quiet,
             save_dir=data_dir,
@@ -94,22 +100,17 @@ def weight_func(
         sw_data = switch_results["sw_data"]
         switch_models = switch_results["switch_models"]
 
-    # Censoring weights
+    # Censoring weights: models for P(cense = 0 | X).
     if use_censor_weights:
         if not cense:
             raise ValueError("cense must be specified when use_censor_weights=True")
-
-        cense_d_formula, _ = parse_formula_like(cense_d_cov)
-        cense_n_formula, _ = parse_formula_like(cense_n_cov)
-
-        # Add (1 - cense) to LHS
-        cense_d_formula = f"(1 - {cense}) ~ {cense_d_formula}"
-        cense_n_formula = f"(1 - {cense}) ~ {cense_n_formula}"
+        if cense not in sw_data.columns:
+            raise ValueError(f"cense column '{cense}' not found in data")
 
         censor_results = fit_censor_weights(
             cense=cense,
-            cense_d_cov=cense_d_formula,
-            cense_n_cov=cense_n_formula,
+            cense_d_cov=f"{_UNCENSORED} ~ {parse_formula_like(cense_d_cov)[0]}",
+            cense_n_cov=f"{_UNCENSORED} ~ {parse_formula_like(cense_n_cov)[0]}",
             pool_cense_d=pool_cense_d,
             pool_cense_n=pool_cense_n,
             sw_data=sw_data,
@@ -121,105 +122,30 @@ def weight_func(
         sw_data = censor_results["sw_data"]
         censor_models = censor_results["censor_models"]
 
-    # Calculate switching weights
+    # Combine switching-model probabilities into per-period weights.
     if not use_switch_weights:
         sw_data["wt"] = 1.0
     else:
         sw_data["wt"] = np.nan
+        am_1 = sw_data["am_1"]
+        treat = sw_data["treatment"]
+        for lag, elig_col, p_n, p_d in (
+            (0, elig_col_0, "p0_n", "p0_d"),
+            (1, elig_col_1, "p1_n", "p1_d"),
+        ):
+            base = am_1 == lag
+            if elig_col is not None:
+                base = base & (sw_data[elig_col] == 1)
+            has_p = sw_data[p_n].notna() & sw_data[p_d].notna()
+            stay0 = base & (treat == 0) & has_p
+            take1 = base & (treat == 1) & has_p
+            sw_data.loc[stay0, "wt"] = (1.0 - sw_data.loc[stay0, p_n]) / (
+                1.0 - sw_data.loc[stay0, p_d]
+            )
+            sw_data.loc[take1, "wt"] = sw_data.loc[take1, p_n] / sw_data.loc[take1, p_d]
+            if elig_col is not None:
+                sw_data.loc[(am_1 == lag) & (sw_data[elig_col] == 0), "wt"] = 1.0
 
-        # For eligible0 (previous treatment = 0)
-        if eligible_wts_0 and eligible_wts_0 in sw_data.columns:
-            mask_0_0 = (
-                (sw_data["am_1"] == 0)
-                & (sw_data[eligible_wts_0] == 1)
-                & (sw_data["treatment"] == 0)
-                & sw_data["p0_n"].notna()
-                & sw_data["p0_d"].notna()
-            )
-            sw_data.loc[mask_0_0, "wt"] = (1.0 - sw_data.loc[mask_0_0, "p0_n"]) / (
-                1.0 - sw_data.loc[mask_0_0, "p0_d"]
-            )
-
-            mask_0_1 = (
-                (sw_data["am_1"] == 0)
-                & (sw_data[eligible_wts_0] == 1)
-                & (sw_data["treatment"] == 1)
-                & sw_data["p0_n"].notna()
-                & sw_data["p0_d"].notna()
-            )
-            sw_data.loc[mask_0_1, "wt"] = (
-                sw_data.loc[mask_0_1, "p0_n"] / sw_data.loc[mask_0_1, "p0_d"]
-            )
-
-            sw_data.loc[(sw_data["am_1"] == 0) & (sw_data[eligible_wts_0] == 0), "wt"] = 1.0
-        else:
-            mask_0_0 = (
-                (sw_data["am_1"] == 0)
-                & (sw_data["treatment"] == 0)
-                & sw_data["p0_n"].notna()
-                & sw_data["p0_d"].notna()
-            )
-            sw_data.loc[mask_0_0, "wt"] = (1.0 - sw_data.loc[mask_0_0, "p0_n"]) / (
-                1.0 - sw_data.loc[mask_0_0, "p0_d"]
-            )
-
-            mask_0_1 = (
-                (sw_data["am_1"] == 0)
-                & (sw_data["treatment"] == 1)
-                & sw_data["p0_n"].notna()
-                & sw_data["p0_d"].notna()
-            )
-            sw_data.loc[mask_0_1, "wt"] = (
-                sw_data.loc[mask_0_1, "p0_n"] / sw_data.loc[mask_0_1, "p0_d"]
-            )
-
-        # For eligible1 (previous treatment = 1)
-        if eligible_wts_1 and eligible_wts_1 in sw_data.columns:
-            mask_1_0 = (
-                (sw_data["am_1"] == 1)
-                & (sw_data[eligible_wts_1] == 1)
-                & (sw_data["treatment"] == 0)
-                & sw_data["p1_n"].notna()
-                & sw_data["p1_d"].notna()
-            )
-            sw_data.loc[mask_1_0, "wt"] = (1.0 - sw_data.loc[mask_1_0, "p1_n"]) / (
-                1.0 - sw_data.loc[mask_1_0, "p1_d"]
-            )
-
-            mask_1_1 = (
-                (sw_data["am_1"] == 1)
-                & (sw_data[eligible_wts_1] == 1)
-                & (sw_data["treatment"] == 1)
-                & sw_data["p1_n"].notna()
-                & sw_data["p1_d"].notna()
-            )
-            sw_data.loc[mask_1_1, "wt"] = (
-                sw_data.loc[mask_1_1, "p1_n"] / sw_data.loc[mask_1_1, "p1_d"]
-            )
-
-            sw_data.loc[(sw_data["am_1"] == 1) & (sw_data[eligible_wts_1] == 0), "wt"] = 1.0
-        else:
-            mask_1_0 = (
-                (sw_data["am_1"] == 1)
-                & (sw_data["treatment"] == 0)
-                & sw_data["p1_n"].notna()
-                & sw_data["p1_d"].notna()
-            )
-            sw_data.loc[mask_1_0, "wt"] = (1.0 - sw_data.loc[mask_1_0, "p1_n"]) / (
-                1.0 - sw_data.loc[mask_1_0, "p1_d"]
-            )
-
-            mask_1_1 = (
-                (sw_data["am_1"] == 1)
-                & (sw_data["treatment"] == 1)
-                & sw_data["p1_n"].notna()
-                & sw_data["p1_d"].notna()
-            )
-            sw_data.loc[mask_1_1, "wt"] = (
-                sw_data.loc[mask_1_1, "p1_n"] / sw_data.loc[mask_1_1, "p1_d"]
-            )
-
-    # Calculate censoring weights
     if not use_censor_weights:
         sw_data["wtC"] = 1.0
     else:
@@ -227,14 +153,63 @@ def weight_func(
         sw_data["pC_n"] = sw_data["pC_n"].fillna(1.0)
         sw_data["wtC"] = sw_data["pC_n"] / sw_data["pC_d"]
 
-    # Combine weights
     sw_data["wt"] = sw_data["wt"] * sw_data["wtC"]
+
+    ordered = ["cens_pool_d", "cens_d0", "cens_n0", "cens_d1", "cens_n1", "cens_pool_n"]
+    censor_models = {k: censor_models[k] for k in ordered if k in censor_models}
 
     return {
         "data": sw_data,
         "switch_models": switch_models,
         "censor_models": censor_models,
     }
+
+
+def _resolve_eligible_wts_col(
+    sw_data: pd.DataFrame, arg: Optional[str], canonical: str
+) -> Optional[str]:
+    """Column holding the eligible_wts_* indicator, or None when not used.
+
+    ``data_preparation`` renames the user's column to ``eligible_wts_0`` /
+    ``eligible_wts_1`` (as R's ``select_data_cols`` does); direct callers of
+    :func:`weight_func` may pass the original column name.
+    """
+    if arg is None or (isinstance(arg, str) and arg in ("", "NA")):
+        return None
+    if canonical in sw_data.columns:
+        return canonical
+    if arg in sw_data.columns:
+        return arg
+    raise ValueError(f"{canonical} column '{arg}' not found in data")
+
+
+def _fit_weight_model(formula: str, data: pd.DataFrame, **kwargs) -> Any:
+    """Fit a binomial-logit GLM, as R's ``glm(family = binomial)`` does."""
+    if len(data) == 0:
+        raise ValueError(f"No observations available to fit weight model '{formula}'")
+    fit_kwargs = {k: v for k, v in kwargs.items() if k in ("maxiter", "tol")}
+    with warnings.catch_warnings():
+        warnings.filterwarnings("ignore", message=".*[Pp]erfect separation.*")
+        model = glm(
+            formula,
+            data=data,
+            family=sm.families.Binomial(link=sm.families.links.Logit()),
+            missing="drop",
+        ).fit(**fit_kwargs)
+    return model
+
+
+def _fitted_probabilities(model: Any, column: str, data: pd.DataFrame) -> pd.DataFrame:
+    """Fitted probabilities aligned to the rows used by the model, with id/period."""
+    rows = model.model.data.row_labels
+    used = data.loc[rows]
+    return pd.DataFrame(
+        {
+            "id": used["id"].to_numpy(),
+            "period": used["period"].to_numpy(),
+            column: np.asarray(model.fittedvalues, dtype=float),
+        }
+    )
 
 
 def fit_switch_weights(
@@ -251,123 +226,45 @@ def fit_switch_weights(
     """
     Fit switching weight models.
 
-    Maps R's fit_switch_weights() function.
+    Maps R's fit_switch_weights(): denominator and numerator models for
+    P(treatment = 1 | previous treatment = k), k = 0, 1, fitted on rows with
+    ``eligible{k} == 1`` (and ``eligible_wts_{k} == 1`` when supplied).
     """
-    switch_models = {}
+    switch_models: Dict[str, Any] = {}
+    merged = []
+    for k, elig_col in ((0, eligible_wts_0), (1, eligible_wts_1)):
+        mask = sw_data[f"eligible{k}"] == 1
+        if elig_col is not None:
+            mask = mask & (sw_data[elig_col] == 1)
+        subset = sw_data[mask]
+        probs = None
+        for part, formula, label in (
+            ("d", switch_d_cov, "denominator"),
+            ("n", switch_n_cov, "numerator"),
+        ):
+            model = _fit_weight_model(formula, subset, **kwargs)
+            col = f"p{k}_{part}"
+            fitted = _fitted_probabilities(model, col, subset)
+            probs = (
+                fitted if probs is None else probs.merge(fitted, on=["id", "period"], how="outer")
+            )
+            switch_models[f"switch_{part}{k}"] = process_weight_model(
+                model,
+                save_weight_models,
+                save_dir,
+                f"weight_model_switch_{part}{k}.pkl",
+                f"P(treatment = 1 | previous treatment = {k}) for {label}",
+                quiet,
+            )
+        merged.append(probs[["id", "period", f"p{k}_d", f"p{k}_n"]])
 
-    # Fit models for eligible0 == 1
-    if eligible_wts_0 and eligible_wts_0 in sw_data.columns:
-        eligible0_data = sw_data[
-            (sw_data["eligible0"] == 1) & (sw_data[eligible_wts_0] == 1)
-        ].copy()
-    else:
-        eligible0_data = sw_data[sw_data["eligible0"] == 1].copy()
+    for probs in merged:
+        sw_data = sw_data.merge(probs, on=["id", "period"], how="left", validate="many_to_one")
 
-    if len(eligible0_data) > 0:
-        # Denominator model
-        model1 = logit(switch_d_cov, data=eligible0_data).fit(disp=0)
-        switch_d0 = pd.DataFrame(
-            {
-                "p0_d": model1.fittedvalues,
-                "id": eligible0_data["id"].values,
-                "period": eligible0_data["period"].values,
-            }
-        )
-
-        switch_models["switch_d0"] = process_weight_model(
-            model1,
-            save_weight_models,
-            save_dir,
-            "weight_model_switch_d0.pkl",
-            "P(treatment = 1 | previous treatment = 0) for denominator",
-            quiet,
-        )
-
-        # Numerator model
-        model2 = logit(switch_n_cov, data=eligible0_data).fit(disp=0)
-        switch_n0 = pd.DataFrame(
-            {
-                "p0_n": model2.fittedvalues,
-                "id": eligible0_data["id"].values,
-                "period": eligible0_data["period"].values,
-            }
-        )
-
-        switch_models["switch_n0"] = process_weight_model(
-            model2,
-            save_weight_models,
-            save_dir,
-            "weight_model_switch_n0.pkl",
-            "P(treatment = 1 | previous treatment = 0) for numerator",
-            quiet,
-        )
-
-        switch_0 = switch_d0.merge(switch_n0, on=["id", "period"], how="outer")
-    else:
-        switch_0 = pd.DataFrame(columns=["id", "period", "p0_d", "p0_n"])
-
-    # Fit models for eligible1 == 1
-    if eligible_wts_1 and eligible_wts_1 in sw_data.columns:
-        eligible1_data = sw_data[
-            (sw_data["eligible1"] == 1) & (sw_data[eligible_wts_1] == 1)
-        ].copy()
-    else:
-        eligible1_data = sw_data[sw_data["eligible1"] == 1].copy()
-
-    if len(eligible1_data) > 0:
-        # Denominator model
-        model3 = logit(switch_d_cov, data=eligible1_data).fit(disp=0)
-        switch_d1 = pd.DataFrame(
-            {
-                "p1_d": model3.fittedvalues,
-                "id": eligible1_data["id"].values,
-                "period": eligible1_data["period"].values,
-            }
-        )
-
-        switch_models["switch_d1"] = process_weight_model(
-            model3,
-            save_weight_models,
-            save_dir,
-            "weight_model_switch_d1.pkl",
-            "P(treatment = 1 | previous treatment = 1) for denominator",
-            quiet,
-        )
-
-        # Numerator model
-        model4 = logit(switch_n_cov, data=eligible1_data).fit(disp=0)
-        switch_n1 = pd.DataFrame(
-            {
-                "p1_n": model4.fittedvalues,
-                "id": eligible1_data["id"].values,
-                "period": eligible1_data["period"].values,
-            }
-        )
-
-        switch_models["switch_n1"] = process_weight_model(
-            model4,
-            save_weight_models,
-            save_dir,
-            "weight_model_switch_n1.pkl",
-            "P(treatment = 1 | previous treatment = 1) for numerator",
-            quiet,
-        )
-
-        switch_1 = switch_d1.merge(switch_n1, on=["id", "period"], how="outer")
-    else:
-        switch_1 = pd.DataFrame(columns=["id", "period", "p1_d", "p1_n"])
-
-    # Merge back to sw_data
-    sw_data = sw_data.merge(
-        switch_0[["id", "period", "p0_d", "p0_n"]], on=["id", "period"], how="left"
-    )
-    sw_data = sw_data.merge(
-        switch_1[["id", "period", "p1_d", "p1_n"]], on=["id", "period"], how="left"
-    )
-
+    ordered = ["switch_d0", "switch_n0", "switch_d1", "switch_n1"]
     return {
         "sw_data": sw_data,
-        "switch_models": switch_models,
+        "switch_models": {k: switch_models[k] for k in ordered},
     }
 
 
@@ -384,193 +281,110 @@ def fit_censor_weights(
     **kwargs,
 ) -> Dict[str, Any]:
     """
-    Fit informative censoring models.
+    Fit informative censoring models for P(cense = 0 | X).
 
-    Maps R's fit_censor_weights() function.
+    Maps R's fit_censor_weights(). Models are pooled over previous treatment
+    or fitted separately for ``eligible0`` / ``eligible1`` rows.
     """
-    censor_models = {}
-
-    # Create (1 - cense) variable
-    sw_data["_cense_1minus"] = 1 - sw_data[cense]
-
-    if pool_cense_d:
-        # Fit pooled denominator model
-        model1 = logit(cense_d_cov.replace(cense, "_cense_1minus"), data=sw_data).fit(disp=0)
-        cense_d = pd.DataFrame(
-            {
-                "pC_d": model1.fittedvalues,
-                "id": sw_data["id"].values,
-                "period": sw_data["period"].values,
-            }
-        )
-
-        censor_models["cens_pool_d"] = process_weight_model(
-            model1,
-            save_weight_models,
-            save_dir,
-            "cense_model_pool_d.pkl",
-            "Model for P(cense = 0 | X) for denominator",
-            quiet,
-        )
-    else:
-        # Fit separate denominator models
-        # eligible0
-        eligible0_data = sw_data[sw_data["eligible0"] == 1].copy()
-        if len(eligible0_data) > 0:
-            model1 = logit(cense_d_cov.replace(cense, "_cense_1minus"), data=eligible0_data).fit(
-                disp=0
-            )
-            cense_d0 = pd.DataFrame(
-                {
-                    "pC_d0": model1.fittedvalues,
-                    "id": eligible0_data["id"].values,
-                    "period": eligible0_data["period"].values,
-                }
-            )
-
-            censor_models["cens_d0"] = process_weight_model(
-                model1,
-                save_weight_models,
-                save_dir,
-                "cense_model_d0.pkl",
-                "Model for P(cense = 0 | X, previous treatment = 0) for denominator",
-                quiet,
-            )
-        else:
-            cense_d0 = pd.DataFrame(columns=["id", "period", "pC_d0"])
-
-        # eligible1
-        eligible1_data = sw_data[sw_data["eligible1"] == 1].copy()
-        if len(eligible1_data) > 0:
-            model3 = logit(cense_d_cov.replace(cense, "_cense_1minus"), data=eligible1_data).fit(
-                disp=0
-            )
-            cense_d1 = pd.DataFrame(
-                {
-                    "pC_d1": model3.fittedvalues,
-                    "id": eligible1_data["id"].values,
-                    "period": eligible1_data["period"].values,
-                }
-            )
-
-            censor_models["cens_d1"] = process_weight_model(
-                model3,
-                save_weight_models,
-                save_dir,
-                "cense_model_d1.pkl",
-                "Model for P(cense = 0 | X, previous treatment = 1) for denominator",
-                quiet,
-            )
-        else:
-            cense_d1 = pd.DataFrame(columns=["id", "period", "pC_d1"])
-
-    if pool_cense_n:
-        # Fit pooled numerator model
-        model2 = logit(cense_n_cov.replace(cense, "_cense_1minus"), data=sw_data).fit(disp=0)
-        cense_n = pd.DataFrame(
-            {
-                "pC_n": model2.fittedvalues,
-                "id": sw_data["id"].values,
-                "period": sw_data["period"].values,
-            }
-        )
-
-        censor_models["cens_pool_n"] = process_weight_model(
-            model2,
-            save_weight_models,
-            save_dir,
-            "cense_model_pool_n.pkl",
-            "Model for P(cense = 0 | X) for numerator",
-            quiet,
-        )
-    else:
-        # Fit separate numerator models
-        # eligible0
-        eligible0_data = sw_data[sw_data["eligible0"] == 1].copy()
-        if len(eligible0_data) > 0:
-            model2 = logit(cense_n_cov.replace(cense, "_cense_1minus"), data=eligible0_data).fit(
-                disp=0
-            )
-            cense_n0 = pd.DataFrame(
-                {
-                    "pC_n0": model2.fittedvalues,
-                    "id": eligible0_data["id"].values,
-                    "period": eligible0_data["period"].values,
-                }
-            )
-
-            censor_models["cens_n0"] = process_weight_model(
-                model2,
-                save_weight_models,
-                save_dir,
-                "cense_model_n0.pkl",
-                "Model for P(cense = 0 | X, previous treatment = 0) for numerator",
-                quiet,
-            )
-        else:
-            cense_n0 = pd.DataFrame(columns=["id", "period", "pC_n0"])
-
-        # eligible1
-        eligible1_data = sw_data[sw_data["eligible1"] == 1].copy()
-        if len(eligible1_data) > 0:
-            model4 = logit(cense_n_cov.replace(cense, "_cense_1minus"), data=eligible1_data).fit(
-                disp=0
-            )
-            cense_n1 = pd.DataFrame(
-                {
-                    "pC_n1": model4.fittedvalues,
-                    "id": eligible1_data["id"].values,
-                    "period": eligible1_data["period"].values,
-                }
-            )
-
-            censor_models["cens_n1"] = process_weight_model(
-                model4,
-                save_weight_models,
-                save_dir,
-                "cense_model_n1.pkl",
-                "Model for P(cense = 0 | X, previous treatment = 1) for numerator",
-                quiet,
-            )
-        else:
-            cense_n1 = pd.DataFrame(columns=["id", "period", "pC_n1"])
-
-    # Combine results
-    if pool_cense_d and pool_cense_n:
-        sw_data = sw_data.merge(cense_d[["id", "period", "pC_d"]], on=["id", "period"], how="left")
-        sw_data = sw_data.merge(cense_n[["id", "period", "pC_n"]], on=["id", "period"], how="left")
-    elif not pool_cense_d and not pool_cense_n:
-        cense_0 = cense_d0.merge(cense_n0, on=["id", "period"], how="outer")
-        cense_1 = cense_d1.merge(cense_n1, on=["id", "period"], how="outer")
-
-        sw_data = sw_data.merge(
-            cense_0[["id", "period", "pC_d0", "pC_n0"]], on=["id", "period"], how="left"
-        )
-        sw_data = sw_data.merge(
-            cense_1[["id", "period", "pC_d1", "pC_n1"]], on=["id", "period"], how="left"
-        )
-
-        sw_data.loc[sw_data["am_1"] == 0, "pC_n"] = sw_data.loc[sw_data["am_1"] == 0, "pC_n0"]
-        sw_data.loc[sw_data["am_1"] == 0, "pC_d"] = sw_data.loc[sw_data["am_1"] == 0, "pC_d0"]
-        sw_data.loc[sw_data["am_1"] == 1, "pC_n"] = sw_data.loc[sw_data["am_1"] == 1, "pC_n1"]
-        sw_data.loc[sw_data["am_1"] == 1, "pC_d"] = sw_data.loc[sw_data["am_1"] == 1, "pC_d1"]
-    elif not pool_cense_d and pool_cense_n:
-        sw_data = sw_data.merge(cense_n[["id", "period", "pC_n"]], on=["id", "period"], how="left")
-        sw_data = sw_data.merge(
-            cense_d0[["id", "period", "pC_d0"]], on=["id", "period"], how="left"
-        )
-        sw_data = sw_data.merge(
-            cense_d1[["id", "period", "pC_d1"]], on=["id", "period"], how="left"
-        )
-
-        sw_data.loc[sw_data["am_1"] == 0, "pC_d"] = sw_data.loc[sw_data["am_1"] == 0, "pC_d0"]
-        sw_data.loc[sw_data["am_1"] == 1, "pC_d"] = sw_data.loc[sw_data["am_1"] == 1, "pC_d1"]
-    elif pool_cense_d and not pool_cense_n:
+    if pool_cense_d and not pool_cense_n:
         raise ValueError("Check the arguments for pooling censoring models!")
 
-    # Clean up temporary column
-    if "_cense_1minus" in sw_data.columns:
-        sw_data = sw_data.drop(columns=["_cense_1minus"])
+    censor_models: Dict[str, Any] = {}
+    sw_data = sw_data.copy()
+    sw_data[_UNCENSORED] = 1 - sw_data[cense]
+
+    def fit(formula: str, data: pd.DataFrame, column: str, key: str, filename: str, desc: str):
+        model = _fit_weight_model(formula, data, **kwargs)
+        censor_models[key] = process_weight_model(
+            model, save_weight_models, save_dir, filename, desc, quiet
+        )
+        return _fitted_probabilities(model, column, data)
+
+    elig0 = sw_data[sw_data["eligible0"] == 1]
+    elig1 = sw_data[sw_data["eligible1"] == 1]
+
+    if pool_cense_d:
+        cense_d = fit(
+            cense_d_cov,
+            sw_data,
+            "pC_d",
+            "cens_pool_d",
+            "cense_model_pool_d.pkl",
+            "Model for P(cense = 0 | X) for denominator",
+        )
+    else:
+        cense_d0 = fit(
+            cense_d_cov,
+            elig0,
+            "pC_d0",
+            "cens_d0",
+            "cense_model_d0.pkl",
+            "Model for P(cense = 0 | X, previous treatment = 0) for denominator",
+        )
+        cense_d1 = fit(
+            cense_d_cov,
+            elig1,
+            "pC_d1",
+            "cens_d1",
+            "cense_model_d1.pkl",
+            "Model for P(cense = 0 | X, previous treatment = 1) for denominator",
+        )
+
+    if pool_cense_n:
+        cense_n = fit(
+            cense_n_cov,
+            sw_data,
+            "pC_n",
+            "cens_pool_n",
+            "cense_model_pool_n.pkl",
+            "Model for P(cense = 0 | X) for numerator",
+        )
+    else:
+        cense_n0 = fit(
+            cense_n_cov,
+            elig0,
+            "pC_n0",
+            "cens_n0",
+            "cense_model_n0.pkl",
+            "Model for P(cense = 0 | X, previous treatment = 0) for numerator",
+        )
+        cense_n1 = fit(
+            cense_n_cov,
+            elig1,
+            "pC_n1",
+            "cens_n1",
+            "cense_model_n1.pkl",
+            "Model for P(cense = 0 | X, previous treatment = 1) for numerator",
+        )
+
+    key = ["id", "period"]
+    if pool_cense_d and pool_cense_n:
+        sw_data = sw_data.merge(cense_d, on=key, how="left", validate="many_to_one")
+        sw_data = sw_data.merge(cense_n, on=key, how="left", validate="many_to_one")
+    elif not pool_cense_d and not pool_cense_n:
+        for part in (cense_d0, cense_n0, cense_d1, cense_n1):
+            sw_data = sw_data.merge(part, on=key, how="left", validate="many_to_one")
+        lag0 = sw_data["am_1"] == 0
+        lag1 = sw_data["am_1"] == 1
+        sw_data["pC_n"] = np.nan
+        sw_data["pC_d"] = np.nan
+        sw_data.loc[lag0, "pC_n"] = sw_data.loc[lag0, "pC_n0"]
+        sw_data.loc[lag0, "pC_d"] = sw_data.loc[lag0, "pC_d0"]
+        sw_data.loc[lag1, "pC_n"] = sw_data.loc[lag1, "pC_n1"]
+        sw_data.loc[lag1, "pC_d"] = sw_data.loc[lag1, "pC_d1"]
+    else:  # pooled numerator, separate denominators (ITT default)
+        # R: sw_data[cense_n, on = (id, period)] keeps the rows used by the
+        # pooled numerator model.
+        sw_data = sw_data.merge(cense_n, on=key, how="inner", validate="many_to_one")
+        sw_data = sw_data.merge(cense_d0, on=key, how="left", validate="many_to_one")
+        sw_data = sw_data.merge(cense_d1, on=key, how="left", validate="many_to_one")
+        sw_data["pC_d"] = np.nan
+        lag0 = sw_data["am_1"] == 0
+        lag1 = sw_data["am_1"] == 1
+        sw_data.loc[lag0, "pC_d"] = sw_data.loc[lag0, "pC_d0"]
+        sw_data.loc[lag1, "pC_d"] = sw_data.loc[lag1, "pC_d1"]
+
+    sw_data = sw_data.drop(columns=[_UNCENSORED])
 
     return {
         "sw_data": sw_data,
@@ -578,8 +392,22 @@ def fit_censor_weights(
     }
 
 
+def _tidy(model: Any) -> pd.DataFrame:
+    """Coefficient table in the layout of R's ``broom::tidy(glm)``."""
+    names = ["(Intercept)" if n == "Intercept" else n for n in model.params.index]
+    return pd.DataFrame(
+        {
+            "term": names,
+            "estimate": np.asarray(model.params, dtype=float),
+            "std.error": np.asarray(model.bse, dtype=float),
+            "statistic": np.asarray(model.tvalues, dtype=float),
+            "p.value": np.asarray(model.pvalues, dtype=float),
+        }
+    )
+
+
 def process_weight_model(
-    model: LogitResults,
+    model: Any,
     save_weight_models: bool,
     save_dir: Optional[str],
     filename: str,
@@ -589,26 +417,28 @@ def process_weight_model(
     """
     Helper to process weight models.
 
-    Maps R's process_weight_model() function.
+    Maps R's process_weight_model(): ``summary`` is the coefficient table
+    (as ``broom::tidy``) and ``fit_summary`` the model-level statistics (as
+    ``broom::glance``).
     """
     quiet_msg(quiet, description)
     quiet_print(quiet, model.summary())
 
     result = {
         "description": description,
-        "summary": model.summary().tables[1],  # Coefficients table
+        "summary": _tidy(model),
         "fit_summary": {
-            "aic": model.aic,
-            "bic": model.bic,
-            "llf": model.llf,
-            "nobs": model.nobs,
+            "null_deviance": float(model.null_deviance),
+            "df_null": int(model.nobs - 1),
+            "logLik": float(model.llf),
+            "aic": float(model.aic),
+            "deviance": float(model.deviance),
+            "df_residual": int(model.df_resid),
+            "nobs": int(model.nobs),
         },
     }
 
     if save_weight_models and save_dir:
-        import os
-        import pickle
-
         path = os.path.join(save_dir, filename)
         os.makedirs(save_dir, exist_ok=True)
         with open(path, "wb") as f:

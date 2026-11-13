@@ -68,6 +68,78 @@ For questions or issues, please visit: https://github.com/csainsbury/Trial-Emula
 
 ## [Unreleased]
 
+## [0.0.5.2] - 2026-11-13
+
+First PyPI release of the 0.0.5 series (PyPI previously had 0.0.4.0 only), so
+it also ships the 0.0.5.0 continuous-outcome MSMs and the 0.0.5.1
+bootstrap mode described below.
+
+### Fixed
+
+- **Trial expansion assigned follow-up rows to the wrong trials.** `expand()`
+  computed the per-trial "expand until switch" flags in `groupby` key order and
+  wrote them back in row order, so the retained rows were a permutation of the
+  correct ones. On the R `trial_example` ITT expansion 1,217,947 of 1,939,053
+  rows had a missing `weight` and 1,285,822 a missing `assigned_treatment`;
+  ITT MSMs only ran because complete-case filtering silently dropped those
+  rows. The expansion now follows R's `expand()` exactly (inner join of the
+  trial-start attributes, ordered cumulative switch censoring), and is
+  vectorised.
+- `cumA` (cumulative treatment) only counted the first period, so As-Treated
+  `dose` was wrong; it is now the within-patient cumulative sum, as in R.
+- Censoring-weight models predicted P(censored) instead of P(uncensored): the
+  `1 - cense` response was rewritten by string replacement into `cense`
+  (which could also corrupt covariate names containing the censoring variable
+  name). Models now use an explicit uncensored indicator, as R's `1 - cense ~ .`.
+- Switching and censoring weights used statsmodels `Logit.fittedvalues`,
+  which is the linear predictor, not the fitted probability. Weight models are
+  now binomial GLMs (as R's `glm`), with fitted probabilities aligned to the
+  rows each model used.
+- `eligible_wts_0` / `eligible_wts_1` were ignored by `data_preparation`
+  because the renamed column was looked up under the user's original name.
+- ITT with a pooled numerator and separate denominator censoring models now
+  keeps the rows of the pooled numerator model, as R does.
+- `p99` analysis weights use R's type-1 quantiles (`inverted_cdf`).
+- `case_control_sampling_trials()` with several `p_control` values returns one
+  data frame per probability (it previously returned one per trial period with
+  a mislabelled `sample_id`).
+- Preprocessing: stable sort by patient, `time_on_regime = 0` on the first
+  row, event time from each patient's last row, and data-removal messages are
+  `warnings` rather than printed text. `keeplist` keeps R's column order.
+
+### Changed
+
+- Weight-model summaries (`switch_models`, `censor_models`) are coefficient
+  tables in the layout of R's `broom::tidy` (`term`, `estimate`, `std.error`,
+  `statistic`, `p.value`), plus `fit_summary` statistics as in `broom::glance`.
+- Requires numpy >= 1.22.
+
+### Validation
+
+- New R parity suite (`tests/test_r_parity.py`) against TrialEmulation 0.0.4.9
+  (git f432103, the `R_source` pin) on `trial_example` (ITT, PP with switching
+  weights, As-Treated) and `data_censored` (ITT with pooled-numerator censoring
+  weights, PP with switching and censoring weights, As-Treated with pooled
+  censoring weights). Expanded data match R exactly in row count, keys,
+  outcome, treatment, assigned treatment, dose and covariates. Tested
+  tolerances (largest observed difference in brackets): weights relative 1e-5
+  (1.3e-7); weight-model and MSM coefficients 1e-4 standard errors (1e-6);
+  robust standard errors relative 1e-3 against R's HC0 cluster sandwich
+  (5.7e-4). R's reported robust SE additionally includes the
+  finite-cluster factor sqrt(G/(G - 1)) (1.001 for 503 patients); the Python
+  default still omits it (see 0.0.5.0 notes). Reference generator and outputs:
+  `tests/data/r_reference/`.
+- Simulation tests for continuous outcomes through the full pipeline
+  (`tests/test_continuous_simulation.py`): a known effect is recovered by the
+  weighted Gaussian MSM for ITT (baseline weights or adjustment) and PP
+  (switching weights fitted by `data_preparation`; the unweighted fit is
+  biased), and a patient bootstrap using `compute_robust_variance=False`
+  reproduces the point estimate and gives a standard error of the sandwich's
+  magnitude.
+- The As-Treated MSM test now prepares data with `estimand_type="As-Treated"`
+  (as R requires, since only that preparation creates `dose`) instead of
+  adding a synthetic `dose` column, and no longer skips on Python 3.14.
+
 ## [0.0.5.1] - 2026-09-18
 
 ### Added

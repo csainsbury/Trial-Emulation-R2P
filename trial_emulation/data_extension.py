@@ -179,177 +179,127 @@ def expand(
     Returns:
         Expanded DataFrame
     """
-    # Create temporary data structure
+    sw_data = sw_data.reset_index(drop=True)
+    n_rows = len(sw_data)
+    periods = sw_data["period"].to_numpy()
+    eligible = sw_data["eligible"].to_numpy()
+    treatment = sw_data["treatment"].to_numpy(dtype=float)
+
+    # Per-row trial-start attributes (R: temp_data). A row can start a trial
+    # when the patient is eligible, treatment is observed and the period lies
+    # within [minperiod, maxperiod].
     temp_data = pd.DataFrame(
         {
-            "id": sw_data["id"].values,
-            "period": sw_data["period"].values,
-            "switch": sw_data.get("switch", 0).values,
+            "id": sw_data["id"].to_numpy(),
+            "period": periods,
+            "expand": (
+                (eligible == 1)
+                & ~np.isnan(treatment)
+                & (periods >= minperiod)
+                & (periods <= maxperiod)
+            ).astype(int),
         }
     )
 
-    # Initialize columns
-    temp_data["wtprod"] = 1.0
-    temp_data["elgcount"] = 0.0
-    temp_data["expand"] = 0.0
-    temp_data["treat"] = 0.0
-    temp_data["dosesum"] = 0.0
+    # Cumulative product of the per-period weights within patient (weight0).
+    sw_data["weight0"] = sw_data.groupby("id", sort=False)["wt"].cumprod()
+    temp_data["wtprod"] = sw_data["weight0"].to_numpy()
+    temp_data["treat"] = treatment
+    temp_data["dosesum"] = sw_data["cumA"].to_numpy(dtype=float)
+    temp_data["elgcount"] = eligible
 
-    # Mark rows to expand
-    expand_mask = (
-        (sw_data["eligible"] == 1)
-        & sw_data["treatment"].notna()
-        & (sw_data["period"] >= minperiod)
-        & (sw_data["period"] <= maxperiod)
-    )
-    temp_data.loc[expand_mask, "expand"] = 1
+    # Assigned treatment: treatment at an eligible period; for ineligible
+    # periods R carries the previous row's treatment (such rows never start a
+    # trial, so this only matters for internal consistency).
+    previous_treatment = np.concatenate([[np.nan], treatment[:-1]])
+    temp_data["init"] = np.where(eligible == 1, treatment, previous_treatment)
 
-    # Calculate weight0 (cumulative product of weights)
-    sw_data["weight0"] = 1.0
-    sw_data.loc[sw_data["first"], "weight0"] = 1.0
-    sw_data["weight0"] = sw_data.groupby("id")["wt"].cumprod()
+    extra_vars: List[str] = []
+    for var in list(outcomeCov_var or []) + _as_list(where_var):
+        if var in sw_data.columns and var not in extra_vars and var not in temp_data.columns:
+            extra_vars.append(var)
+            temp_data[var] = sw_data[var].to_numpy()
 
-    temp_data["wtprod"] = sw_data["weight0"].values
-    temp_data["treat"] = sw_data["treatment"].values
-    temp_data["dosesum"] = sw_data.get("cumA", 0).values
-    temp_data["elgcount"] = sw_data["eligible"].values
+    # Expand every observed row into trials starting at periods 0..period
+    # (R: rep(seq_len(nrow), period + 1) and sequence(period + 1, from = 0)).
+    n_copies = periods.astype(np.int64) + 1
+    expand_index = np.repeat(np.arange(n_rows), n_copies)
+    offsets = np.repeat(np.cumsum(n_copies) - n_copies, n_copies)
+    trial_period = np.arange(len(expand_index)) - offsets
 
-    # Calculate init (initial treatment at eligibility)
-    temp_data["init"] = np.nan
-    eligible_mask = sw_data["eligible"] == 1
-    temp_data.loc[eligible_mask, "init"] = sw_data.loc[eligible_mask, "treatment"].values
-
-    # Forward fill init within each ID
-    temp_data["init"] = temp_data.groupby("id")["init"].ffill()
-
-    # Copy outcome covariates
-    if outcomeCov_var:
-        for var in outcomeCov_var:
-            if var in sw_data.columns:
-                temp_data[var] = sw_data[var].values
-
-    # Copy where variables
-    if where_var:
-        if isinstance(where_var, list):
-            for var in where_var:
-                if var in sw_data.columns:
-                    temp_data[var] = sw_data[var].values
-        else:
-            if where_var in sw_data.columns:
-                temp_data[where_var] = sw_data[where_var].values
-
-    # Create expansion index
-    # For each row, create period+1 rows (one for each trial_period from 0 to period)
-    expand_index_list = []
-    trial_period_list = []
-    for idx, row in sw_data.iterrows():
-        period_val = int(row["period"])
-        for trial_period in range(period_val + 1):
-            expand_index_list.append(idx)
-            trial_period_list.append(trial_period)
-
-    expand_index = pd.Series(expand_index_list)
-
-    # Create expanded data using iloc for proper indexing
-    expand_idx_array = np.array(expand_index_list)
     switch_data = pd.DataFrame(
         {
-            "id": sw_data.iloc[expand_idx_array]["id"].values,
-            "period_new": sw_data.iloc[expand_idx_array]["period"].values,
-            "cumA_new": (
-                sw_data.iloc[expand_idx_array]["cumA"].values
-                if "cumA" in sw_data.columns
-                else np.zeros(len(expand_index_list))
-            ),
-            "treatment_new": sw_data.iloc[expand_idx_array]["treatment"].values,
-            "outcome_new": sw_data.iloc[expand_idx_array]["outcome"].values,
-            "time_of_event": sw_data.iloc[expand_idx_array]["time_of_event"].values,
-            "weight0": sw_data.iloc[expand_idx_array]["weight0"].values,
-            "trial_period": trial_period_list,
+            "id": sw_data["id"].to_numpy()[expand_index],
+            "period_new": periods[expand_index],
+            "cumA_new": sw_data["cumA"].to_numpy(dtype=float)[expand_index],
+            "treatment_new": treatment[expand_index],
+            "switch_new": (sw_data["switch"].to_numpy()[expand_index] if use_censor else 0),
+            "outcome_new": sw_data["outcome"].to_numpy(dtype=float)[expand_index],
+            "time_of_event": sw_data["time_of_event"].to_numpy(dtype=float)[expand_index],
+            "weight0": sw_data["weight0"].to_numpy(dtype=float)[expand_index],
+            "trial_period": trial_period,
+            "index": np.arange(len(expand_index)),
         }
     )
 
-    if use_censor:
-        switch_data["switch_new"] = sw_data.iloc[expand_idx_array]["switch"].values
-    else:
-        switch_data["switch_new"] = 0
-
-    switch_data["index"] = range(len(switch_data))
-
-    # Merge with temp_data
-    merge_cols = ["id", "period", "wtprod", "expand", "treat", "dosesum", "elgcount", "init"]
-    if outcomeCov_var:
-        merge_cols.extend([var for var in outcomeCov_var if var in temp_data.columns])
-    if where_var:
-        if isinstance(where_var, list):
-            merge_cols.extend([var for var in where_var if var in temp_data.columns])
-        elif where_var in temp_data.columns:
-            merge_cols.append(where_var)
-
+    # Attach trial-start attributes. R joins switch_data[temp_data, on =
+    # (id, trial_period = period)], which keeps only (patient, trial) pairs
+    # whose trial period is an observed period of that patient.
     switch_data = switch_data.merge(
-        temp_data[merge_cols], left_on=["id", "trial_period"], right_on=["id", "period"], how="left"
+        temp_data.rename(columns={"period": "trial_period"}),
+        on=["id", "trial_period"],
+        how="inner",
+        validate="many_to_one",
     )
+    switch_data = switch_data.sort_values("index", kind="stable").reset_index(drop=True)
 
-    switch_data = switch_data.sort_values("index").reset_index(drop=True)
-
-    # Calculate followup_time
     switch_data["followup_time"] = switch_data["period_new"] - switch_data["trial_period"]
 
-    # Calculate dose if in keeplist
     if "dose" in keeplist:
         switch_data["dose"] = (
             switch_data["cumA_new"] - switch_data["dosesum"] + switch_data["treat"]
         )
 
-    # Set switch_new to 0 at followup_time == 0
     switch_data.loc[switch_data["followup_time"] == 0, "switch_new"] = 0
 
-    # Expand until switch - update expand flag based on switch_new
-    # Only update for groups where expand was originally 1
-    expand_results = []
-    for (id_val, trial_period_val), group in switch_data.groupby(["id", "trial_period"]):
-        if group["expand"].iloc[0] == 1:  # Only process if originally marked for expansion
-            expand_flag = expand_until_switch(group["switch_new"].values, len(group))
-            expand_results.extend(expand_flag)
-        else:
-            expand_results.extend([0] * len(group))
+    # Within each trial that may expand, keep follow-up up to (not including)
+    # the first treatment switch (R: expand_until_switch by id, trial_period).
+    # Rows are in index order, i.e. increasing period within each trial.
+    switched_so_far = switch_data.groupby(["id", "trial_period"], sort=False)["switch_new"].cumsum()
+    switch_data["expand"] = np.where((switch_data["expand"] == 1) & (switched_so_far == 0), 1, 0)
 
-    # Update expand column
-    switch_data["expand"] = expand_results
-
-    # Calculate weight
     switch_data["weight"] = switch_data["weight0"] / switch_data["wtprod"]
 
-    # Calculate case/outcome
-    switch_data["case"] = 0
+    event_now = (switch_data["time_of_event"] == switch_data["period_new"]) & (
+        switch_data["outcome_new"] == 1
+    )
     if not use_censor:
-        switch_data.loc[
-            (switch_data["time_of_event"] == switch_data["period_new"])
-            & (switch_data["outcome_new"] == 1),
-            "case",
-        ] = 1
+        case = np.where(event_now, 1.0, 0.0)
     else:
-        switch_data.loc[switch_data["switch_new"] == 1, "case"] = np.nan
-        switch_data.loc[
-            (switch_data["switch_new"] == 0)
-            & (switch_data["time_of_event"] == switch_data["period_new"])
-            & (switch_data["outcome_new"] == 1),
-            "case",
-        ] = 1
+        case = np.where(
+            switch_data["switch_new"] == 1,
+            np.nan,
+            np.where(event_now, 1.0, 0.0),
+        )
+    switch_data["case"] = case
 
-    # Rename columns
     switch_data = switch_data.rename(
         columns={"case": "outcome", "init": "assigned_treatment", "treatment_new": "treatment"}
     )
 
-    # Filter to expanded rows
-    switch_data = switch_data[switch_data["expand"] == 1].copy()
+    switch_data = switch_data[switch_data["expand"] == 1]
+    missing = [col for col in keeplist if col not in switch_data.columns]
+    if missing:
+        raise ValueError(f"Variables not available in expanded data: {missing}")
+    return switch_data[list(keeplist)].reset_index(drop=True)
 
-    # Select keeplist columns
-    available_cols = [col for col in keeplist if col in switch_data.columns]
-    switch_data = switch_data[available_cols].copy()
 
-    return switch_data
+def _as_list(x: Optional[Union[str, List[str]]]) -> List[str]:
+    if x is None:
+        return []
+    if isinstance(x, str):
+        return [x]
+    return [v for v in x if v is not None]
 
 
 def expand_until_switch(s: np.ndarray, n: int) -> np.ndarray:

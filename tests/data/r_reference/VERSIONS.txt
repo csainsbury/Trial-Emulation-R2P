@@ -1,0 +1,5 @@
+TrialEmulation 0.0.4.9
+git f432103fe20dc65aac6e3efaca797d1b98ff364f
+data.table 1.14.8
+sandwich 3.1.1
+R version 4.1.2 (2021-11-01)

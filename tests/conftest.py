@@ -80,13 +80,31 @@ def expanded_trial_data_real(trial_example_data):
     prep.data["age"] = prep.data["nvarB"]
     prep.data["baseline_var"] = prep.data["nvarA"]
 
-    # Add a non-collinear dose column for MSM tests that exercise the
-    # As-Treated default formula (dose + I(dose**2)) without requiring a full
-    # As-Treated data-preparation run, which is numerically singular on this
-    # compact fixture.
-    prep.data["dose"] = prep.data["treatment"] + (0.1 * prep.data["followup_time"])
-
     return prep
+
+
+@pytest.fixture(scope="session")
+def expanded_trial_data_as_treated():
+    """
+    trial_example prepared for the As-Treated estimand, as R requires.
+
+    As-Treated preparation fits switching weights and adds the ``dose``
+    column (cumulative treatment since trial start) used by the default
+    As-Treated MSM ``dose + I(dose**2)``.
+    """
+    from trial_emulation.data_preparation import data_preparation
+
+    test_dir = os.path.dirname(os.path.abspath(__file__))
+    data = pd.read_csv(os.path.join(test_dir, "data", "trial_example.csv"))
+    return data_preparation(
+        data=data,
+        estimand_type="As-Treated",
+        outcome_cov=["nvarA", "nvarB"],
+        switch_n_cov="~ nvarA + nvarB",
+        switch_d_cov="~ nvarA + nvarB + nvarC + catvarA",
+        use_censor_weights=False,
+        quiet=True,
+    )
 
 
 @pytest.fixture

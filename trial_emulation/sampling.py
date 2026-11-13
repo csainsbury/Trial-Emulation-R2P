@@ -59,12 +59,13 @@ def case_control_sampling_trials(
         trial_samples = _sample_data_prep_dt(data_prep, p_control, subset_condition, sort)
 
     if len(p_control) > 1:
-        # Return list of DataFrames, one per p_control value
-        result_list = []
-        for sample_id, sample_data in enumerate(trial_samples):
-            sample_data["sample_id"] = sample_id
-            result_list.append(sample_data)
-        return result_list
+        # One DataFrame per p_control value (R: split(rbindlist(trial_samples),
+        # by = "sample_id", keep.by = FALSE)).
+        combined = pd.concat(trial_samples, ignore_index=True)
+        return [
+            group.drop(columns="sample_id").reset_index(drop=True)
+            for _, group in combined.groupby("sample_id", sort=True)
+        ]
     else:
         # Return single DataFrame
         result = pd.concat(trial_samples, ignore_index=True)
