@@ -50,6 +50,9 @@ jobs:
           CIBW_BUILD: cp310-* cp311-* cp312-*
           CIBW_SKIP: "*-musllinux_* *-manylinux_i686 *-win32"
           CIBW_ARCHS_LINUX: x86_64
+          # manylinux_2_28 (glibc ≥ 2.28): current scipy ships no manylinux2014 wheels, so testing the built
+          # wheel in the manylinux2014 image tried to compile scipy from source and failed (run 43470404890).
+          CIBW_MANYLINUX_X86_64_IMAGE: manylinux_2_28
           CIBW_ARCHS_MACOS: x86_64 arm64
           CIBW_ARCHS_WINDOWS: AMD64
           CIBW_TEST_COMMAND: >-
