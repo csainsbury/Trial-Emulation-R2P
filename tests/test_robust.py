@@ -143,7 +143,12 @@ def test_vectorised_sandwich_matches_cluster_loop(name, small_sample_correction)
     np.testing.assert_allclose(
         result["matrix"] / np.outer(sd, sd), reference / np.outer(sd, sd), rtol=0, atol=1e-6
     )
-    np.testing.assert_allclose(fit.robust["matrix"], result["matrix"], rtol=0, atol=0)
+    # trial_msm stores the same calculation. Not bitwise: on the macOS runners
+    # repeated calls on the same fit differ at the same rounding level
+    # (threaded BLAS in the Hessian and pseudo-inverse).
+    np.testing.assert_allclose(
+        fit.robust["matrix"] / np.outer(sd, sd), result["matrix"] / np.outer(sd, sd), atol=1e-6
+    )
     np.testing.assert_allclose(
         result["summary"]["robust_se"], np.sqrt(np.diag(reference)), rtol=1e-6
     )
