@@ -7,9 +7,18 @@ import pandas as pd
 import pytest
 
 from trial_emulation import data_preparation, trial_msm
-from trial_emulation.robust import robust_calculation
+from trial_emulation.robust import _cluster_meat, robust_calculation
 
 DATA_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data")
+
+
+def _loop_meat(score_obs, group_values, positive_rows):
+    """The 0.0.5.2 meat: one boolean scan of all rows per positive-weight cluster."""
+    meat = np.zeros((score_obs.shape[1], score_obs.shape[1]), dtype=float)
+    for group in pd.unique(group_values[positive_rows]):
+        cluster_score = score_obs[group_values == group].sum(axis=0)
+        meat += np.outer(cluster_score, cluster_score)
+    return meat
 
 
 def _loop_reference(model, data_id, small_sample_correction=False):
@@ -110,14 +119,27 @@ def test_vectorised_sandwich_matches_cluster_loop(name, small_sample_correction)
     data, kwargs = FITS[name]
     fit = trial_msm(data, quiet=True, small_sample_correction=small_sample_correction, **kwargs)
     ids = fit.model.model.data.frame["id"]
-    reference = _loop_reference(fit.model, ids, small_sample_correction)
-    result = robust_calculation(fit.model, ids, small_sample_correction=small_sample_correction)
+    # The changed piece, the cluster meat, matches the loop to 1e-10.
+    model = fit.model
+    score_obs = np.asarray(model.model.score_obs(model.params, scale=1.0), dtype=float)
+    group_values = pd.Series(ids).reset_index(drop=True).to_numpy()
+    positive_rows = np.asarray(model.model.freq_weights, dtype=float) > 0
+    loop_meat = _loop_meat(score_obs, group_values, positive_rows)
     np.testing.assert_allclose(
-        result["matrix"], reference, rtol=1e-10, atol=1e-10 * np.abs(reference).max()
+        _cluster_meat(score_obs, group_values, positive_rows),
+        loop_meat,
+        rtol=1e-10,
+        atol=1e-10 * np.abs(loop_meat).max(),
+    )
+    # The full covariance goes through the pseudo-inverse of an ill-conditioned
+    # Hessian (unscaled squared time terms), which amplifies summation-order
+    # rounding in the meat (observed up to ~5e-8 relative on some BLAS builds).
+    reference = _loop_reference(model, ids, small_sample_correction)
+    result = robust_calculation(model, ids, small_sample_correction=small_sample_correction)
+    np.testing.assert_allclose(
+        result["matrix"], reference, rtol=1e-6, atol=1e-10 * np.abs(reference).max()
     )
     np.testing.assert_allclose(fit.robust["matrix"], result["matrix"], rtol=0, atol=0)
     np.testing.assert_allclose(
-        result["summary"]["robust_se"],
-        np.sqrt(np.diag(reference)),
-        rtol=1e-10,
+        result["summary"]["robust_se"], np.sqrt(np.diag(reference)), rtol=1e-6
     )
