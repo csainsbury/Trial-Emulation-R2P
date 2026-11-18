@@ -265,7 +265,8 @@ def trial_msm(
     if not np.isfinite(np.asarray(model.params, dtype=float)).all():
         raise RuntimeError("MSM GLM returned non-finite parameters")
 
-    quiet_print(quiet, model.summary())
+    if not quiet:
+        quiet_print(quiet, model.summary())
     quiet_line(quiet)
     if compute_robust_variance:
         quiet_msg(quiet, "Calculating robust variance")
@@ -306,9 +307,8 @@ def trial_msm(
         "analysis_positive_weight_rows": positive_weight_rows,
         "analysis_weight_sum": float(model_weights.sum()),
         "working_model_scale": float(model.scale),
-        "design_rank": int(
-            np.linalg.matrix_rank(x_design.to_numpy(dtype=float)[model_weights > 0])
-        ),
+        # Full rank on positive-weight rows is checked in _prepare_formula_rows.
+        "design_rank": int(x_design.shape[1]),
         "design_columns": int(x_design.shape[1]),
         "variance_scope": (
             robust_model["variance_scope"] if compute_robust_variance else "not_computed"

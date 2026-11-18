@@ -429,7 +429,8 @@ def process_weight_model(
     ``broom::glance``).
     """
     quiet_msg(quiet, description)
-    quiet_print(quiet, model.summary())
+    if not quiet:
+        quiet_print(quiet, model.summary())
 
     result = {
         "description": description,

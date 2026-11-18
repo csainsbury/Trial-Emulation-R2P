@@ -266,9 +266,10 @@ def _newton_fit(model: Any, backend: Any, *, maxiter: int, tol: float, solver: s
 
     def deviance(mu) -> float:
         if kind == "logit":
+            # y is 0/1: the likelihood term is log(mu) or log(1 - mu).
             clipped = backend.clip(mu, _EPS, 1.0 - _EPS)
-            terms = y * backend.log(clipped) + (1.0 - y) * backend.log(1.0 - clipped)
-            return -2.0 * backend.total(wf * terms)
+            fitted_prob = y * clipped + (1.0 - y) * (1.0 - clipped)
+            return -2.0 * backend.total(wf * backend.log(fitted_prob))
         resid = y - mu
         return backend.total(wf * resid * resid)
 
