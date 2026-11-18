@@ -7,6 +7,27 @@ import pandas as pd
 from scipy import stats
 
 
+def _cluster_meat(
+    score_obs: np.ndarray, group_values: np.ndarray, positive_rows: np.ndarray
+) -> np.ndarray:
+    """Sum over positive-weight clusters of the outer product of cluster score sums.
+
+    Each cluster's score sum runs over all of its rows (zero-weight rows have
+    zero score), exactly as a per-cluster loop would, but in one pass over the
+    rows: O(rows x parameters + clusters x parameters^2) instead of
+    O(clusters x rows).
+    """
+    codes, _ = pd.factorize(group_values)
+    n_groups = int(codes.max()) + 1
+    cluster_scores = np.empty((n_groups, score_obs.shape[1]), dtype=float)
+    for j in range(score_obs.shape[1]):
+        cluster_scores[:, j] = np.bincount(codes, weights=score_obs[:, j], minlength=n_groups)
+    has_positive = np.zeros(n_groups, dtype=bool)
+    has_positive[codes[positive_rows]] = True
+    cluster_scores = cluster_scores[has_positive]
+    return cluster_scores.T @ cluster_scores
+
+
 def robust_calculation(
     model: Any,
     data_id: pd.Series,
@@ -58,10 +79,7 @@ def robust_calculation(
         raise ValueError("cluster-robust covariance requires at least two positive-weight clusters")
 
     bread = np.linalg.pinv(-hessian)
-    meat = np.zeros((n_parameters, n_parameters), dtype=float)
-    for group in positive_groups:
-        cluster_score = score_obs[group_values == group].sum(axis=0)
-        meat += np.outer(cluster_score, cluster_score)
+    meat = _cluster_meat(score_obs, group_values, positive_rows)
 
     correction = 1.0
     if small_sample_correction:
