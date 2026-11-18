@@ -133,11 +133,15 @@ def test_vectorised_sandwich_matches_cluster_loop(name, small_sample_correction)
     )
     # The full covariance goes through the pseudo-inverse of an ill-conditioned
     # Hessian (unscaled squared time terms), which amplifies summation-order
-    # rounding in the meat (observed up to ~5e-8 relative on some BLAS builds).
+    # rounding in the meat (observed on the macOS runners: SEs ~5e-8 relative, near-zero
+    # off-diagonal covariances up to 3e-5 relative).
     reference = _loop_reference(model, ids, small_sample_correction)
     result = robust_calculation(model, ids, small_sample_correction=small_sample_correction)
+    # Compare on the correlation scale: off-diagonal covariances near zero
+    # cancel and carry the amplified rounding (~1e-7 of sqrt(var_i var_j)).
+    sd = np.sqrt(np.diag(reference))
     np.testing.assert_allclose(
-        result["matrix"], reference, rtol=1e-6, atol=1e-10 * np.abs(reference).max()
+        result["matrix"] / np.outer(sd, sd), reference / np.outer(sd, sd), rtol=0, atol=1e-6
     )
     np.testing.assert_allclose(fit.robust["matrix"], result["matrix"], rtol=0, atol=0)
     np.testing.assert_allclose(
