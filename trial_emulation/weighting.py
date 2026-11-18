@@ -12,9 +12,8 @@ import warnings
 
 import numpy as np
 import pandas as pd
-import statsmodels.api as sm
-from statsmodels.formula.api import glm
 
+from ._glm import check_solver, fit_formula_glm
 from .formula_utils import parse_formula_like
 from .utils import quiet_msg, quiet_print
 
@@ -40,6 +39,7 @@ def weight_func(
     data_dir: Optional[str] = None,
     quiet: bool = False,
     glm_function: str = "glm",
+    solver: str = "numpy",
     **kwargs,
 ) -> Dict[str, Any]:
     """
@@ -65,7 +65,11 @@ def weight_func(
         data_dir: Directory to save models
         quiet: Suppress messages?
         glm_function: GLM function to use (for compatibility)
-        **kwargs: Additional arguments passed to GLM
+        solver: ``"numpy"`` (exact Newton/IRLS, default), ``"statsmodels"``
+            (reference ``GLM.fit``) or ``"torch"`` (same Newton/IRLS in
+            float64 with PyTorch; only when requested). All give the same
+            maximum-likelihood fit.
+        **kwargs: Additional arguments passed to GLM (``maxiter``, ``tol``)
 
     Returns:
         Dictionary with keys:
@@ -74,6 +78,7 @@ def weight_func(
             - censor_models: Dictionary of censoring weight model summaries
     """
     sw_data = sw_data.copy()
+    kwargs["solver"] = check_solver(solver)
 
     switch_models: Dict[str, Any] = {}
     censor_models: Dict[str, Any] = {}
@@ -183,19 +188,21 @@ def _resolve_eligible_wts_col(
     raise ValueError(f"{canonical} column '{arg}' not found in data")
 
 
-def _fit_weight_model(formula: str, data: pd.DataFrame, **kwargs) -> Any:
+def _fit_weight_model(formula: str, data: pd.DataFrame, solver: str = "numpy", **kwargs) -> Any:
     """Fit a binomial-logit GLM, as R's ``glm(family = binomial)`` does."""
     if len(data) == 0:
         raise ValueError(f"No observations available to fit weight model '{formula}'")
     fit_kwargs = {k: v for k, v in kwargs.items() if k in ("maxiter", "tol")}
     with warnings.catch_warnings():
         warnings.filterwarnings("ignore", message=".*[Pp]erfect separation.*")
-        model = glm(
+        model = fit_formula_glm(
             formula,
-            data=data,
-            family=sm.families.Binomial(link=sm.families.links.Logit()),
+            data,
+            "binomial",
             missing="drop",
-        ).fit(**fit_kwargs)
+            solver=solver,
+            fit_kwargs=fit_kwargs,
+        )
     return model
 
 
@@ -426,6 +433,7 @@ def process_weight_model(
 
     result = {
         "description": description,
+        "solver": getattr(model, "mle_settings", {}).get("solver", "statsmodels"),
         "summary": _tidy(model),
         "fit_summary": {
             "null_deviance": float(model.null_deviance),

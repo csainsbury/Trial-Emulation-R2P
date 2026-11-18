@@ -7,8 +7,8 @@ import numpy as np
 import pandas as pd
 import statsmodels.api as sm
 from patsy import dmatrices
-from statsmodels.formula.api import glm
 
+from ._glm import check_solver, fit_formula_glm
 from .formula_utils import add_rhs, parse_formula_like
 from .robust import robust_calculation
 from .types import TEDataPrep, TEMSM
@@ -108,6 +108,7 @@ def trial_msm(
     small_sample_correction: bool = False,
     compute_robust_variance: bool = True,
     quiet: bool = False,
+    solver: str = "numpy",
     **kwargs,
 ) -> TEMSM:
     """Fit a weighted marginal structural model.
@@ -140,6 +141,11 @@ def trial_msm(
             ``False`` only when variance comes from an outer resampling procedure;
             the fitted GLM and predictions are unchanged and ``robust`` is empty.
         quiet: Suppress progress output.
+        solver: ``"numpy"`` (exact Newton/IRLS, default), ``"statsmodels"``
+            (reference ``GLM.fit``) or ``"torch"`` (the same Newton/IRLS with
+            PyTorch, CUDA when available; used only when requested). All give
+            the same maximum-likelihood fit and a statsmodels results object.
+            Fit options other than ``maxiter``/``tol`` use statsmodels.
         **kwargs: Additional arguments passed to statsmodels ``GLM.fit``.
     """
     if isinstance(data, TEDataPrep):
@@ -159,6 +165,7 @@ def trial_msm(
         )
     if outcome_family not in _SUPPORTED_FAMILIES:
         _family(outcome_family)  # raise the canonical message
+    check_solver(solver)
     if glm_function != "glm":
         raise ValueError("glm_function is retained for compatibility; only 'glm' is supported")
     forbidden_fit_kwargs = {"weights", "freq_weights", "var_weights"}.intersection(kwargs)
@@ -244,13 +251,15 @@ def trial_msm(
     quiet_msg(quiet, "Fitting outcome model")
     fit_kwargs = {"disp": 0}
     fit_kwargs.update(kwargs)
-    model = glm(
+    model = fit_formula_glm(
         model_formula,
-        data=model_data,
-        family=_family(outcome_family),
+        model_data,
+        outcome_family,
         freq_weights=model_weights,
         missing="raise",
-    ).fit(**fit_kwargs)
+        solver=solver,
+        fit_kwargs=fit_kwargs,
+    )
     if hasattr(model, "converged") and not bool(model.converged):
         raise RuntimeError("MSM GLM did not converge")
     if not np.isfinite(np.asarray(model.params, dtype=float)).all():
@@ -288,6 +297,8 @@ def trial_msm(
         "outcome_family": outcome_family,
         "small_sample_correction": small_sample_correction,
         "compute_robust_variance": compute_robust_variance,
+        "solver": solver,
+        "solver_used": getattr(model, "mle_settings", {}).get("solver", "statsmodels"),
         "model_formula": model_formula,
         "analysis_rows": int(len(model_data)),
         "analysis_clusters": int(model_data.loc[model_weights > 0, "id"].nunique()),

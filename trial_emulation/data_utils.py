@@ -4,6 +4,7 @@ Data utilities for column selection and data preparation checks.
 
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
+from ._glm import check_solver
 from .formula_utils import parse_formula_like
 
 
@@ -132,6 +133,7 @@ def check_args_data_preparation(
     chunk_size: int = 500,
     separate_files: bool = False,
     quiet: bool = False,
+    solver: str = "numpy",
     **kwargs,
 ) -> Dict[str, Any]:
     """
@@ -160,6 +162,8 @@ def check_args_data_preparation(
         raise ValueError(
             f"pool_cense must be one of 'none', 'both', 'numerator', got '{pool_cense}'"
         )
+
+    check_solver(solver)
 
     # Check for deprecated arguments
     if "use_weight" in kwargs:
@@ -236,6 +240,7 @@ def check_args_data_preparation(
         "chunk_size": chunk_size,
         "separate_files": separate_files,
         "quiet": quiet,
+        "solver": solver,
         "keeplist": keeplist,
     }
 
