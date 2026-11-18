@@ -48,6 +48,7 @@ def data_preparation(
     chunk_size: int = 500,
     separate_files: bool = False,
     quiet: bool = False,
+    solver: str = "numpy",
     **kwargs,
 ) -> TEDataPrep:
     """
@@ -87,6 +88,10 @@ def data_preparation(
         chunk_size: Number of individuals per chunk when separate_files=True
         separate_files: Save expanded data in separate CSV files?
         quiet: Suppress progress messages?
+        solver: Weight-model GLM solver: ``"numpy"`` (exact Newton/IRLS,
+            default), ``"statsmodels"`` (reference ``GLM.fit``) or ``"torch"``
+            (the same Newton/IRLS with PyTorch, CUDA when available; used only
+            when requested). All fit the same maximum-likelihood models.
         **kwargs: Additional arguments passed to weight functions
 
     Returns:
@@ -129,6 +134,7 @@ def data_preparation(
         chunk_size=chunk_size,
         separate_files=separate_files,
         quiet=quiet,
+        solver=solver,
         **kwargs,
     )
 
@@ -159,6 +165,7 @@ def data_preparation(
             data_dir=args.get("data_dir"),
             quiet=args["quiet"],
             glm_function=args["glm_function"],
+            solver=args["solver"],
             **kwargs,
         )
         data = weight_result["data"]

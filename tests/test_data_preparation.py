@@ -472,3 +472,53 @@ class TestDataPreparationQuietMode:
         # With quiet=False, there should be some output
         # (Note: this test might need adjustment based on actual output behavior)
         assert isinstance(result, TEDataPrep)
+
+
+class TestDataPreparationEligibleWeights:
+    """eligible_wts_0/1 columns are accepted under the user's own names (as in R)."""
+
+    @staticmethod
+    def _run(data, **kwargs):
+        return data_preparation(
+            data=data,
+            estimand_type="PP",
+            switch_n_cov="~ nvarA + nvarB",
+            switch_d_cov="~ nvarA + nvarB + nvarC",
+            outcome_cov="~ nvarA + nvarB",
+            quiet=True,
+            **kwargs,
+        )
+
+    def test_non_canonical_names_match_canonical_names(self, trial_example_data):
+        data = trial_example_data.copy()
+        # Deterministic indicators that exclude some rows from each weight model.
+        data["wts_elig_off"] = (data["nvarA"] % 3 != 0).astype(int)
+        data["wts_elig_on"] = (data["nvarB"] > data["nvarB"].quantile(0.2)).astype(int)
+
+        custom = self._run(data, eligible_wts_0="wts_elig_off", eligible_wts_1="wts_elig_on")
+
+        canonical_data = data.rename(
+            columns={"wts_elig_off": "eligible_wts_0", "wts_elig_on": "eligible_wts_1"}
+        )
+        canonical = self._run(
+            canonical_data, eligible_wts_0="eligible_wts_0", eligible_wts_1="eligible_wts_1"
+        )
+        unrestricted = self._run(data)
+
+        keys = ["id", "trial_period", "followup_time"]
+        left = custom.data.sort_values(keys).reset_index(drop=True)
+        right = canonical.data.sort_values(keys).reset_index(drop=True)
+        pd.testing.assert_frame_equal(left, right, check_like=True)
+        for name in ("switch_d0", "switch_n0", "switch_d1", "switch_n1"):
+            pd.testing.assert_frame_equal(
+                custom.switch_models[name]["summary"], canonical.switch_models[name]["summary"]
+            )
+            # The indicator restricts the rows each switch model is fitted on.
+            assert (
+                custom.switch_models[name]["fit_summary"]["nobs"]
+                < unrestricted.switch_models[name]["fit_summary"]["nobs"]
+            )
+
+    def test_missing_eligible_wts_column_raises(self, trial_example_data):
+        with pytest.raises(ValueError, match="not_a_column"):
+            self._run(trial_example_data, eligible_wts_0="not_a_column")

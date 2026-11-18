@@ -68,6 +68,56 @@ For questions or issues, please visit: https://github.com/csainsbury/Trial-Emula
 
 ## [Unreleased]
 
+## [0.0.5.3] - 2026-11-18
+
+Speed release. Estimates are unchanged beyond solver tolerance.
+
+### Changed
+
+- **Cluster-robust sandwich vectorised.** Cluster score sums are formed in
+  one pass with `np.bincount` instead of a boolean scan of all rows per
+  cluster (cost was clusters x rows). Same formula and options, including the
+  default without R's G/(G - 1) factor and `small_sample_correction`.
+  `tests/test_robust.py` checks the cluster score sums against the previous
+  loop to 1e-10, the SEs to 1e-6 relative and the covariance to 1e-6 on the
+  correlation scale (divided by the reference SEs): on ill-conditioned designs
+  the pseudo-inverted Hessian amplifies summation-order rounding.
+- **Exact Newton/IRLS solver is the default** for the switching/censoring
+  weight models and the MSM (`solver="numpy"` on `data_preparation`,
+  `weight_func` and `trial_msm`). It runs statsmodels' IRLS (same starting
+  values, steps and deviance convergence rule) but solves each step from the
+  p x p weighted Gram matrix, and returns an ordinary statsmodels `GLMResults`
+  from the same formula model (`params`, `bse`, `summary()`, `predict()`,
+  pickling unchanged). `solver="statsmodels"` keeps the reference `GLM.fit`
+  path, which the numpy solver also uses (recording the reason in
+  `mle_settings`) for other fit options, offsets, non-0/1 binomial responses,
+  ill-conditioned steps or non-convergence. `solver="torch"` runs the same
+  iteration in float64 with PyTorch (CUDA when available) and is only used when
+  requested. Against statsmodels: coefficients agree to <= 1e-10 relative on
+  the R example data and weights to <= 1e-12; R parity tests pass unchanged.
+- `model.summary()` is no longer built when `quiet=True` (it refitted a null
+  model on all rows), and `trial_msm` no longer recomputes the already-checked
+  design rank.
+
+Stage times on a synthetic problem of 1.9M person-periods, 65,000 patients
+(2,068 treatment starters), PP with switching and censoring weights, 21.7M
+expanded rows, 10-parameter MSM (single run each, Apple M-series laptop):
+
+| Stage | 0.0.5.2 | 0.0.5.3 |
+|---|---|---|
+| Weight models (7 fits) | 3.7 s | 1.8 s |
+| MSM fit and post-fit | 191 s | 14.5 s |
+| Robust sandwich | 1,095 s | 5.7 s |
+| Whole pipeline | 1,501 s | 40 s |
+
+### Fixed
+
+- `eligible_wts_0` / `eligible_wts_1` given under a non-canonical column name
+  were dropped by `select_data_cols` before the weight step, so
+  `data_preparation` errored. The columns are now kept under their canonical
+  names (as R's `select_data_cols` does), and a missing column is reported up
+  front.
+
 ## [0.0.5.2] - 2026-11-13
 
 First PyPI release of the 0.0.5 series (PyPI previously had 0.0.4.0 only), so

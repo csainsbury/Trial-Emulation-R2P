@@ -4,6 +4,7 @@ Data utilities for column selection and data preparation checks.
 
 from typing import Dict, List, Optional, Union, Any
 import pandas as pd
+from ._glm import check_solver
 from .formula_utils import parse_formula_like
 
 
@@ -69,11 +70,20 @@ def select_data_cols(data: pd.DataFrame, args: Dict[str, Any]) -> pd.DataFrame:
     additional_cols.extend(formula_vars)
     additional_cols = list(set(additional_cols))  # Remove duplicates
 
-    # Rename eligible_wts columns if specified
-    if eligible_wts_0 and eligible_wts_0 != "NA" and eligible_wts_0 in data.columns:
-        data = data.rename(columns={eligible_wts_0: "eligible_wts_0"})
-    if eligible_wts_1 and eligible_wts_1 != "NA" and eligible_wts_1 in data.columns:
-        data = data.rename(columns={eligible_wts_1: "eligible_wts_1"})
+    # Rename eligible_wts columns to their canonical names (as R's
+    # select_data_cols does) and keep them under those names.
+    eligible_wts_rename = {}
+    for user_col, canonical in (
+        (eligible_wts_0, "eligible_wts_0"),
+        (eligible_wts_1, "eligible_wts_1"),
+    ):
+        if user_col and user_col != "NA":
+            if user_col not in data.columns:
+                raise ValueError(f"{canonical} column '{user_col}' not found in data")
+            eligible_wts_rename[user_col] = canonical
+            additional_cols.append(canonical)
+    if eligible_wts_rename:
+        data = data.rename(columns=eligible_wts_rename)
 
     # Select required columns
     required_cols = ["id", "period", "outcome", "eligible", "treatment"]
@@ -123,6 +133,7 @@ def check_args_data_preparation(
     chunk_size: int = 500,
     separate_files: bool = False,
     quiet: bool = False,
+    solver: str = "numpy",
     **kwargs,
 ) -> Dict[str, Any]:
     """
@@ -151,6 +162,8 @@ def check_args_data_preparation(
         raise ValueError(
             f"pool_cense must be one of 'none', 'both', 'numerator', got '{pool_cense}'"
         )
+
+    check_solver(solver)
 
     # Check for deprecated arguments
     if "use_weight" in kwargs:
@@ -227,6 +240,7 @@ def check_args_data_preparation(
         "chunk_size": chunk_size,
         "separate_files": separate_files,
         "quiet": quiet,
+        "solver": solver,
         "keeplist": keeplist,
     }
 
