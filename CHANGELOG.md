@@ -78,7 +78,9 @@ Speed release. Estimates are unchanged beyond solver tolerance.
   one pass with `np.bincount` instead of a boolean scan of all rows per
   cluster (cost was clusters x rows). Same formula and options, including the
   default without R's G/(G - 1) factor and `small_sample_correction`.
-  `tests/test_robust.py` checks it against the previous loop to 1e-10.
+  `tests/test_robust.py` checks the cluster score sums against the previous
+  loop to 1e-10 and the covariance and SEs to 1e-6: on ill-conditioned
+  designs the pseudo-inverted Hessian amplifies summation-order rounding.
 - **Exact Newton/IRLS solver is the default** for the switching/censoring
   weight models and the MSM (`solver="numpy"` on `data_preparation`,
   `weight_func` and `trial_msm`). It runs statsmodels' IRLS (same starting
