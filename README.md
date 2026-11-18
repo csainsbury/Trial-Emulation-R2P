@@ -241,8 +241,9 @@ This approach ensures that our Python implementation produces results consistent
 
 ### Test Coverage
 
-Current test status (as of v0.0.5.2):
+Current test status (as of v0.0.5.3):
 - **R parity suite** (`tests/test_r_parity.py`) against TrialEmulation 0.0.4.9 for ITT, PP and As-Treated preparation, switching and censoring weights, weight models and MSM coefficients with robust standard errors (reference outputs and generator in `tests/data/r_reference/`)
+- **Solver parity** (`tests/test_solver.py`): the default Newton/IRLS solver against statsmodels `GLM.fit` (`solver="statsmodels"`) for weight models, weights, MSM coefficients and standard errors; the vectorised cluster sandwich against the previous per-cluster loop (`tests/test_robust.py`)
 - Simulation checks that the weighted Gaussian MSM recovers a known continuous effect (ITT and PP) and that the patient-bootstrap mode is consistent
 - ✓ **Multi-platform testing** via GitHub Actions (Linux, macOS, Windows; Python 3.10–3.12)
 
